@@ -13,11 +13,13 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://maven.hytale.com/release/")
+    maven("https://repo.helpch.at/releases")
 }
 
 dependencies {
-    // Hytale Server API - place HytaleServer.jar in libs/ directory
-    compileOnly(files("libs/HytaleServer.jar"))
+    compileOnly("com.hypixel.hytale:Server:latest.release")
+    compileOnly("at.helpch:placeholderapi-hytale:1.0.6")
     implementation("com.google.code.gson:gson:2.10.1")
 }
 
