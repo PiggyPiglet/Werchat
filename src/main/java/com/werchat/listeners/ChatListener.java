@@ -11,6 +11,7 @@ import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
 import com.werchat.config.WerchatConfig;
+import com.werchat.integration.papi.PAPIIntegration;
 import com.werchat.storage.PlayerDataManager;
 
 import java.lang.reflect.Method;
@@ -28,6 +29,7 @@ public class ChatListener {
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
     private final WerchatConfig config;
+    private final PAPIIntegration papi;
 
     // Pattern for @mentions
     private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
@@ -54,6 +56,7 @@ public class ChatListener {
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
         this.config = plugin.getConfig();
+        this.papi = PAPIIntegration.register(plugin);
     }
 
     /**
