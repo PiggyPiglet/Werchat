@@ -12,6 +12,7 @@ public final class WerchatApiActionContext {
     private final String channelInput;
     private final String message;
     private final WerchatOperationOptions options;
+    private final WerchatChannelLookupMode lookupMode;
 
     private String resolvedChannelName;
     private boolean cancelled;
@@ -21,12 +22,14 @@ public final class WerchatApiActionContext {
                                    UUID playerId,
                                    String channelInput,
                                    String message,
-                                   WerchatOperationOptions options) {
+                                   WerchatOperationOptions options,
+                                   WerchatChannelLookupMode lookupMode) {
         this.actionType = actionType;
         this.playerId = playerId;
         this.channelInput = channelInput;
         this.message = message;
         this.options = options;
+        this.lookupMode = lookupMode;
         this.cancelled = false;
         this.cancelReason = null;
     }
@@ -49,6 +52,10 @@ public final class WerchatApiActionContext {
 
     public WerchatOperationOptions getOptions() {
         return options;
+    }
+
+    public WerchatChannelLookupMode getLookupMode() {
+        return lookupMode;
     }
 
     public String getResolvedChannelName() {

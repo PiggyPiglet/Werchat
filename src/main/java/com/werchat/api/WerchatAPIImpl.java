@@ -28,6 +28,7 @@ public class WerchatAPIImpl implements WerchatAPI {
         WerchatApiCapabilities.PERMISSION_AWARE_OPERATIONS,
         WerchatApiCapabilities.HOOKS,
         WerchatApiCapabilities.SUBMIT_PLAYER_CHAT,
+        WerchatApiCapabilities.CHANNEL_LOOKUP_MODES,
         WerchatApiCapabilities.API_VERSIONING
     );
 
@@ -53,8 +54,8 @@ public class WerchatAPIImpl implements WerchatAPI {
     }
 
     @Override
-    public Optional<WerchatChannelView> getChannel(String channelInput) {
-        Channel channel = channelManager.findChannel(channelInput);
+    public Optional<WerchatChannelView> getChannel(String channelInput, WerchatChannelLookupMode lookupMode) {
+        Channel channel = resolveChannel(channelInput, lookupMode);
         return Optional.ofNullable(channel).map(this::toView);
     }
 
@@ -90,11 +91,24 @@ public class WerchatAPIImpl implements WerchatAPI {
 
     @Override
     public WerchatActionResult setFocusedChannel(UUID playerId, String channelInput) {
-        return setFocusedChannel(playerId, channelInput, WerchatOperationOptions.defaults());
+        return setFocusedChannel(
+            playerId,
+            channelInput,
+            WerchatOperationOptions.defaults(),
+            WerchatChannelLookupMode.FUZZY
+        );
     }
 
     @Override
     public WerchatActionResult setFocusedChannel(UUID playerId, String channelInput, WerchatOperationOptions options) {
+        return setFocusedChannel(playerId, channelInput, options, WerchatChannelLookupMode.FUZZY);
+    }
+
+    @Override
+    public WerchatActionResult setFocusedChannel(UUID playerId,
+                                                 String channelInput,
+                                                 WerchatOperationOptions options,
+                                                 WerchatChannelLookupMode lookupMode) {
         if (playerId == null) {
             return WerchatActionResult.failure(WerchatActionStatus.INVALID_ARGUMENT, "playerId cannot be null", null);
         }
@@ -103,15 +117,17 @@ public class WerchatAPIImpl implements WerchatAPI {
         }
 
         WerchatOperationOptions effectiveOptions = WerchatOperationOptions.orDefault(options);
+        WerchatChannelLookupMode effectiveLookupMode = normalizeLookupMode(lookupMode);
         WerchatApiActionContext context = new WerchatApiActionContext(
             WerchatApiActionType.SET_FOCUSED_CHANNEL,
             playerId,
             channelInput,
             null,
-            effectiveOptions
+            effectiveOptions,
+            effectiveLookupMode
         );
 
-        Channel channel = channelManager.findChannel(channelInput);
+        Channel channel = resolveChannel(channelInput, effectiveLookupMode);
         if (channel != null) {
             context.setResolvedChannelName(channel.getName());
         }
@@ -139,11 +155,26 @@ public class WerchatAPIImpl implements WerchatAPI {
 
     @Override
     public WerchatActionResult joinChannel(UUID playerId, String channelInput, String password) {
-        return joinChannel(playerId, channelInput, password, WerchatOperationOptions.defaults());
+        return joinChannel(
+            playerId,
+            channelInput,
+            password,
+            WerchatOperationOptions.defaults(),
+            WerchatChannelLookupMode.FUZZY
+        );
     }
 
     @Override
     public WerchatActionResult joinChannel(UUID playerId, String channelInput, String password, WerchatOperationOptions options) {
+        return joinChannel(playerId, channelInput, password, options, WerchatChannelLookupMode.FUZZY);
+    }
+
+    @Override
+    public WerchatActionResult joinChannel(UUID playerId,
+                                           String channelInput,
+                                           String password,
+                                           WerchatOperationOptions options,
+                                           WerchatChannelLookupMode lookupMode) {
         if (playerId == null) {
             return WerchatActionResult.failure(WerchatActionStatus.INVALID_ARGUMENT, "playerId cannot be null", null);
         }
@@ -152,15 +183,17 @@ public class WerchatAPIImpl implements WerchatAPI {
         }
 
         WerchatOperationOptions effectiveOptions = WerchatOperationOptions.orDefault(options);
+        WerchatChannelLookupMode effectiveLookupMode = normalizeLookupMode(lookupMode);
         WerchatApiActionContext context = new WerchatApiActionContext(
             WerchatApiActionType.JOIN_CHANNEL,
             playerId,
             channelInput,
             null,
-            effectiveOptions
+            effectiveOptions,
+            effectiveLookupMode
         );
 
-        Channel channel = channelManager.findChannel(channelInput);
+        Channel channel = resolveChannel(channelInput, effectiveLookupMode);
         if (channel != null) {
             context.setResolvedChannelName(channel.getName());
         }
@@ -195,11 +228,24 @@ public class WerchatAPIImpl implements WerchatAPI {
 
     @Override
     public WerchatActionResult leaveChannel(UUID playerId, String channelInput) {
-        return leaveChannel(playerId, channelInput, WerchatOperationOptions.defaults());
+        return leaveChannel(
+            playerId,
+            channelInput,
+            WerchatOperationOptions.defaults(),
+            WerchatChannelLookupMode.FUZZY
+        );
     }
 
     @Override
     public WerchatActionResult leaveChannel(UUID playerId, String channelInput, WerchatOperationOptions options) {
+        return leaveChannel(playerId, channelInput, options, WerchatChannelLookupMode.FUZZY);
+    }
+
+    @Override
+    public WerchatActionResult leaveChannel(UUID playerId,
+                                            String channelInput,
+                                            WerchatOperationOptions options,
+                                            WerchatChannelLookupMode lookupMode) {
         if (playerId == null) {
             return WerchatActionResult.failure(WerchatActionStatus.INVALID_ARGUMENT, "playerId cannot be null", null);
         }
@@ -208,15 +254,17 @@ public class WerchatAPIImpl implements WerchatAPI {
         }
 
         WerchatOperationOptions effectiveOptions = WerchatOperationOptions.orDefault(options);
+        WerchatChannelLookupMode effectiveLookupMode = normalizeLookupMode(lookupMode);
         WerchatApiActionContext context = new WerchatApiActionContext(
             WerchatApiActionType.LEAVE_CHANNEL,
             playerId,
             channelInput,
             null,
-            effectiveOptions
+            effectiveOptions,
+            effectiveLookupMode
         );
 
-        Channel channel = channelManager.findChannel(channelInput);
+        Channel channel = resolveChannel(channelInput, effectiveLookupMode);
         if (channel != null) {
             context.setResolvedChannelName(channel.getName());
         }
@@ -249,7 +297,7 @@ public class WerchatAPIImpl implements WerchatAPI {
     }
 
     @Override
-    public WerchatMembershipResult getMembership(UUID playerId, String channelInput) {
+    public WerchatMembershipResult getMembership(UUID playerId, String channelInput, WerchatChannelLookupMode lookupMode) {
         if (playerId == null) {
             return WerchatMembershipResult.invalidArgument("playerId cannot be null");
         }
@@ -257,7 +305,7 @@ public class WerchatAPIImpl implements WerchatAPI {
             return WerchatMembershipResult.invalidArgument("channelInput cannot be blank");
         }
 
-        Channel channel = channelManager.findChannel(channelInput);
+        Channel channel = resolveChannel(channelInput, normalizeLookupMode(lookupMode));
         if (channel == null) {
             return WerchatMembershipResult.channelNotFound(channelInput);
         }
@@ -292,7 +340,8 @@ public class WerchatAPIImpl implements WerchatAPI {
             senderId,
             null,
             message,
-            effectiveOptions
+            effectiveOptions,
+            WerchatChannelLookupMode.FUZZY
         );
 
         Channel quickChatChannel = channelManager.findChannelByQuickChatSymbol(message);
@@ -370,6 +419,7 @@ public class WerchatAPIImpl implements WerchatAPI {
             context.getResolvedChannelName(),
             context.getMessage(),
             context.getOptions(),
+            context.getLookupMode(),
             result
         );
 
@@ -395,6 +445,21 @@ public class WerchatAPIImpl implements WerchatAPI {
 
     private String channelPermissionNode(Channel channel, String action) {
         return "werchat.channel." + channel.getName().toLowerCase(Locale.ROOT) + "." + action;
+    }
+
+    private Channel resolveChannel(String channelInput, WerchatChannelLookupMode lookupMode) {
+        if (channelInput == null || channelInput.isBlank()) {
+            return null;
+        }
+
+        return switch (normalizeLookupMode(lookupMode)) {
+            case EXACT -> channelManager.getChannel(channelInput);
+            case FUZZY -> channelManager.findChannel(channelInput);
+        };
+    }
+
+    private WerchatChannelLookupMode normalizeLookupMode(WerchatChannelLookupMode lookupMode) {
+        return lookupMode == null ? WerchatChannelLookupMode.FUZZY : lookupMode;
     }
 
     private WerchatChannelView toView(Channel channel) {

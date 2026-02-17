@@ -13,6 +13,7 @@ public final class WerchatApiActionOutcome {
     private final String resolvedChannelName;
     private final String message;
     private final WerchatOperationOptions options;
+    private final WerchatChannelLookupMode lookupMode;
     private final WerchatActionResult result;
 
     public WerchatApiActionOutcome(WerchatApiActionType actionType,
@@ -21,6 +22,7 @@ public final class WerchatApiActionOutcome {
                                    String resolvedChannelName,
                                    String message,
                                    WerchatOperationOptions options,
+                                   WerchatChannelLookupMode lookupMode,
                                    WerchatActionResult result) {
         this.actionType = actionType;
         this.playerId = playerId;
@@ -28,6 +30,7 @@ public final class WerchatApiActionOutcome {
         this.resolvedChannelName = resolvedChannelName;
         this.message = message;
         this.options = options;
+        this.lookupMode = lookupMode;
         this.result = result;
     }
 
@@ -53,6 +56,10 @@ public final class WerchatApiActionOutcome {
 
     public WerchatOperationOptions getOptions() {
         return options;
+    }
+
+    public WerchatChannelLookupMode getLookupMode() {
+        return lookupMode;
     }
 
     public WerchatActionResult getResult() {
