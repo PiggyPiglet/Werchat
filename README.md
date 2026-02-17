@@ -272,11 +272,11 @@ Direct channel selector alias:
 | `nick` | Channel's short label/alias |
 | `colorhex` | Channel tag color as hex (`#RRGGBB`) |
 | `format` | Raw channel format template string |
-| `color` | Raw Java color string for the tag color (`java.awt.Color[...]`) |
+| `color` | Channel tag color as hex (`#RRGGBB`) |
 | `effective_msg_colorhex` | Final message text color hex (message color override or tag color fallback) |
 | `join_permission` | Permission node string associated with joining this channel (`werchat.channel.<name>.join`) |
 | `msg_color_hex` | Explicit message text color hex override (`#RRGGBB`), blank when unset |
-| `msg_color` | Raw Java color string for explicit message color (`java.awt.Color[...]`), `null` when unset |
+| `msg_color` | Explicit message text color hex (`#RRGGBB`), blank when unset |
 | `quickchatsymbol` | Quick-chat trigger symbol (for example `!`), blank when unset |
 | `see_permission` | Permission node string associated with viewing/receiving this channel (`werchat.channel.<name>.see`) |
 | `speak_permission` | Permission node string associated with speaking in this channel (`werchat.channel.<name>.speak`) |

@@ -219,11 +219,11 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             case "nick" -> channel.getNick();
             case "colorhex" -> channel.getColorHex();
             case "format" -> channel.getFormat();
-            case "color" -> String.valueOf(channel.getColor());
+            case "color" -> channel.getColorHex();
             case "effective_msg_colorhex" -> channel.getEffectiveMessageColorHex();
             case "join_permission" -> channel.getJoinPermission();
             case "msg_color_hex" -> nullToEmpty(channel.getMessageColorHex());
-            case "msg_color" -> String.valueOf(channel.getMessageColor());
+            case "msg_color" -> nullToEmpty(channel.getMessageColorHex());
             case "quickchatsymbol" -> nullToEmpty(channel.getQuickChatSymbol());
             case "see_permission" -> channel.getSeePermission();
             case "speak_permission" -> channel.getSpeakPermission();
