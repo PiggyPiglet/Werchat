@@ -62,7 +62,7 @@ public class PlayerDataManager {
 
     public PlayerChatData getPlayerData(UUID playerId) {
         return playerData.computeIfAbsent(playerId, id -> {
-            PlayerChatData data = new PlayerChatData(id);
+            PlayerChatData data = new PlayerChatData();
             Channel defaultChannel = plugin.getChannelManager().getDefaultChannel();
             if (defaultChannel != null) data.setFocusedChannel(defaultChannel.getName());
             return data;
@@ -88,9 +88,6 @@ public class PlayerDataManager {
     // Cooldown tracking
     public long getLastMessageTime(UUID playerId) { return getPlayerData(playerId).getLastMessageTime(); }
     public void setLastMessageTime(UUID playerId, long time) { getPlayerData(playerId).setLastMessageTime(time); }
-
-    // Cooldown bypass (always false for now - can be extended later via config)
-    public boolean hasCooldownBypass(UUID playerId) { return false; }
 
     // Nickname methods
     public String getNickname(UUID playerId) { return getPlayerData(playerId).getNickname(); }
@@ -221,12 +218,6 @@ public class PlayerDataManager {
         }
     }
 
-    public void saveAll() {
-        saveNicknames();
-        plugin.getLogger().at(Level.INFO).log("Saved data for %d players", playerData.size());
-    }
-    public void loadPlayer(UUID playerId) { /* Nicknames loaded on startup */ }
-
     public void clearTransientData(UUID playerId) {
         PlayerChatData data = playerData.get(playerId);
         if (data != null) {
@@ -235,7 +226,6 @@ public class PlayerDataManager {
     }
 
     public static class PlayerChatData {
-        private final UUID playerId;
         private String focusedChannel;
         private final Set<UUID> ignoredPlayers;
         private UUID lastMessageFrom;
@@ -246,8 +236,7 @@ public class PlayerDataManager {
         private String msgColor; // Custom message color
         private String msgGradientEnd; // End color for message gradient
 
-        public PlayerChatData(UUID playerId) {
-            this.playerId = playerId;
+        public PlayerChatData() {
             this.focusedChannel = "Global";
             this.ignoredPlayers = new HashSet<>();
             this.lastMessageTime = 0;
@@ -258,7 +247,6 @@ public class PlayerDataManager {
             this.msgGradientEnd = null;
         }
 
-        public UUID getPlayerId() { return playerId; }
         public String getFocusedChannel() { return focusedChannel; }
         public void setFocusedChannel(String channel) { this.focusedChannel = channel; }
         public boolean isIgnoring(UUID targetId) { return ignoredPlayers.contains(targetId); }

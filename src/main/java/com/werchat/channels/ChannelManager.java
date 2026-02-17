@@ -72,14 +72,29 @@ public class ChannelManager {
             createDefaultChannels();
         }
 
-        // Always save to ensure both files exist and old format gets migrated
-        saveChannels();
-
         // Ensure we have a default
         if (defaultChannel == null && !channels.isEmpty()) {
             defaultChannel = channels.values().iterator().next();
             defaultChannel.setDefault(true);
         }
+
+        // Honor configured default channel name when present
+        String configuredDefaultName = plugin.getConfig().getDefaultChannelName();
+        if (configuredDefaultName != null && !configuredDefaultName.isBlank()) {
+            Channel configuredDefault = getChannel(configuredDefaultName);
+            if (configuredDefault != null) {
+                setDefaultChannel(configuredDefault);
+            } else {
+                plugin.getLogger().at(Level.WARNING).log(
+                    "Configured default channel '%s' was not found; using '%s'",
+                    configuredDefaultName,
+                    defaultChannel != null ? defaultChannel.getName() : "none"
+                );
+            }
+        }
+
+        // Always save to ensure both files exist and old format gets migrated
+        saveChannels();
     }
 
     private void loadEmbeddedMembers(Channel ch, JsonObject obj) {
@@ -276,6 +291,8 @@ public class ChannelManager {
         obj.addProperty("quickChatEnabled", ch.isQuickChatEnabled());
         obj.addProperty("isDefault", ch.isDefault());
         obj.addProperty("autoJoin", ch.isAutoJoin());
+        obj.addProperty("focusable", ch.isFocusable());
+        obj.addProperty("verbose", ch.isVerbose());
 
         return obj;
     }
@@ -299,6 +316,12 @@ public class ChannelManager {
             }
             ch.setDefault(obj.get("isDefault").getAsBoolean());
             ch.setAutoJoin(obj.get("autoJoin").getAsBoolean());
+            if (obj.has("focusable")) {
+                ch.setFocusable(obj.get("focusable").getAsBoolean());
+            }
+            if (obj.has("verbose")) {
+                ch.setVerbose(obj.get("verbose").getAsBoolean());
+            }
 
             if (obj.has("messageColor") && !obj.get("messageColor").isJsonNull()) {
                 String msgColorStr = obj.get("messageColor").getAsString();

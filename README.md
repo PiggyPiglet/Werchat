@@ -27,13 +27,17 @@
 
 **Permission Integration** — HyperPerms and LuckPerms prefix/suffix support with hex color codes.
 
+**PlaceholderAPI Integration** — Supports external `%...%` placeholders in channel format text and includes a built-in `%werchat_*%` expansion.
+
+**Plugin API** — Exposes a lightweight `WerchatAPI` for other plugins to query channels, manage membership/focus, and relay chat through Werchat's pipeline.
+
 **Message Colors** — Independent message text colors and gradients, separate from nickname colors.
 
 **Persistent Storage** — JSON-based data with auto-save every 5 minutes and immediate save on changes.
 
 ## Quick Start
 
-1. Drop `Werchat-1.1.8.jar` in your `mods/` folder
+1. Drop `Werchat-1.1.9.jar` in your `mods/` folder
 2. Start your server — four default channels are created automatically
 3. Use `/ch list` to see channels, `/ch join <channel>` to join one
 4. Type `!hello` to quick-chat in Global or `~hello` for Trade
@@ -216,6 +220,24 @@ Custom channel message formats support these placeholders:
 
 Default format: `{nick} {sender}: {msg}`
 
+Format literals also support PlaceholderAPI placeholders when PlaceholderAPI is installed.
+
+</details>
+
+<details>
+<summary><strong>Plugin API</strong></summary>
+
+Access Werchat's integration API:
+
+```java
+WerchatAPI api = WerchatPlugin.api();
+if (api != null) {
+    api.joinChannel(playerId, "trade", null);
+    api.setFocusedChannel(playerId, "trade");
+    api.relayChat(playerId, "Selling iron!");
+}
+```
+
 </details>
 
 <details>
@@ -225,7 +247,7 @@ Default format: `{nick} {sender}: {msg}`
 
 ```bash
 ./gradlew jar
-# Output: build/libs/Werchat-1.1.8.jar
+# Output: build/libs/Werchat-1.1.9.jar
 ```
 
 `manifest.json` now needs an explicit `ServerVersion` that exactly matches the running server build (not `*` and no range operators), for example:

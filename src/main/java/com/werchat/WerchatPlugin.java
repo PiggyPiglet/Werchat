@@ -13,6 +13,8 @@ import com.werchat.commands.IgnoreListCommand;
 import com.werchat.commands.MessageCommand;
 import com.werchat.commands.ReplyCommand;
 import com.werchat.config.WerchatConfig;
+import com.werchat.api.WerchatAPI;
+import com.werchat.api.WerchatAPIImpl;
 import com.werchat.listeners.ChatListener;
 import com.werchat.listeners.PlayerListener;
 import com.werchat.storage.PlayerDataManager;
@@ -25,7 +27,7 @@ import java.util.logging.Level;
 
 /**
  * Werchat - Channel-based chat system for Hytale
- * Version 1.1.8
+ * Version 1.1.9
  */
 public class WerchatPlugin extends JavaPlugin {
 
@@ -35,6 +37,7 @@ public class WerchatPlugin extends JavaPlugin {
     private PlayerDataManager playerDataManager;
     private ChatListener chatListener;
     private PlayerListener playerListener;
+    private WerchatAPI api;
     private ScheduledExecutorService autoSaveScheduler;
 
     public WerchatPlugin(@Nonnull JavaPluginInit init) {
@@ -44,7 +47,7 @@ public class WerchatPlugin extends JavaPlugin {
 
     @Override
     public java.util.concurrent.CompletableFuture<Void> preLoad() {
-        getLogger().at(Level.INFO).log("Werchat 1.1.8 is loading...");
+        getLogger().at(Level.INFO).log("Werchat 1.1.9 is loading...");
 
         // Initialize config first
         this.config = new WerchatConfig(this);
@@ -55,6 +58,7 @@ public class WerchatPlugin extends JavaPlugin {
         this.playerDataManager = new PlayerDataManager(this);
         this.chatListener = new ChatListener(this);
         this.playerListener = new PlayerListener(this);
+        this.api = new WerchatAPIImpl(this);
 
         // Load data
         channelManager.loadChannels();
@@ -131,8 +135,10 @@ public class WerchatPlugin extends JavaPlugin {
     }
 
     public static WerchatPlugin getInstance() { return instance; }
+    public static WerchatAPI api() { return instance != null ? instance.getAPI() : null; }
     public WerchatConfig getConfig() { return config; }
     public ChannelManager getChannelManager() { return channelManager; }
     public PlayerDataManager getPlayerDataManager() { return playerDataManager; }
     public ChatListener getChatListener() { return chatListener; }
+    public WerchatAPI getAPI() { return api; }
 }

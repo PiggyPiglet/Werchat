@@ -7,6 +7,7 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
+import com.werchat.config.WerchatConfig;
 import com.werchat.storage.PlayerDataManager;
 
 import java.util.UUID;
@@ -16,14 +17,14 @@ import java.util.UUID;
  */
 public class PlayerListener {
 
-    private final WerchatPlugin plugin;
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
+    private final WerchatConfig config;
 
     public PlayerListener(WerchatPlugin plugin) {
-        this.plugin = plugin;
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
+        this.config = plugin.getConfig();
     }
 
     public void onPlayerConnect(PlayerConnectEvent event) {
@@ -34,21 +35,32 @@ public class PlayerListener {
         // Track online player
         playerDataManager.trackPlayer(playerId, player);
 
-        // Auto-join default channels (silently - no broadcast spam)
+        // Auto-join channels flagged with autoJoin, optionally skipping default when disabled in config
         for (Channel channel : channelManager.getAllChannels()) {
-            if (channel.isAutoJoin() && !channel.isBanned(playerId)) {
+            boolean shouldAutoJoin = channel.isAutoJoin();
+            if (channel.isDefault() && !config.isAutoJoinDefault()) {
+                shouldAutoJoin = false;
+            }
+            if (shouldAutoJoin && !channel.isBanned(playerId)) {
                 channel.addMember(playerId);
             }
         }
 
-        // Set default focused channel if none set
+        Channel defaultChannel = channelManager.getDefaultChannel();
+        if (defaultChannel != null && config.isAutoJoinDefault() && !defaultChannel.isBanned(playerId)) {
+            defaultChannel.addMember(playerId);
+        }
+
+        // Set focused channel if none set
         if (playerDataManager.getFocusedChannel(playerId) == null) {
-            Channel defaultChannel = channelManager.getDefaultChannel();
             if (defaultChannel != null) {
                 playerDataManager.setFocusedChannel(playerId, defaultChannel.getName());
             }
         }
 
+        if (config.isShowJoinLeaveMessages()) {
+            broadcastMembershipEvent(playerName + " joined the server", playerId);
+        }
     }
 
     public void onPlayerDisconnect(PlayerDisconnectEvent event) {
@@ -56,43 +68,21 @@ public class PlayerListener {
         UUID playerId = player.getUuid();
         String playerName = player.getUsername();
 
+        if (config.isShowJoinLeaveMessages()) {
+            broadcastMembershipEvent(playerName + " left the server", playerId);
+        }
+
         // Don't remove from channels - persist membership across sessions
-        // No broadcast spam on disconnect either
-        // Only clean up transient data
         playerDataManager.untrackPlayer(playerId);
         playerDataManager.clearTransientData(playerId);
     }
 
-    public boolean joinChannel(PlayerRef player, Channel channel) {
-        UUID playerId = player.getUuid();
-        if (channel.isBanned(playerId) || channel.isMember(playerId)) {
-            return false;
-        }
-        channel.addMember(playerId);
-        if (channel.isVerbose()) {
-            broadcastToChannel(channel, player.getUsername() + " joined " + channel.getName());
-        }
-        return true;
-    }
-
-    public boolean leaveChannel(PlayerRef player, Channel channel) {
-        UUID playerId = player.getUuid();
-        if (!channel.isMember(playerId)) {
-            return false;
-        }
-        channel.removeMember(playerId);
-        if (channel.isVerbose()) {
-            broadcastToChannel(channel, player.getUsername() + " left " + channel.getName());
-        }
-        // Reset focus if leaving focused channel
-        String focused = playerDataManager.getFocusedChannel(playerId);
-        if (focused != null && focused.equalsIgnoreCase(channel.getName())) {
-            Channel def = channelManager.getDefaultChannel();
-            if (def != null) {
-                playerDataManager.setFocusedChannel(playerId, def.getName());
+    private void broadcastMembershipEvent(String text, UUID playerId) {
+        for (Channel channel : channelManager.getPlayerChannels(playerId)) {
+            if (channel.isVerbose()) {
+                broadcastToChannel(channel, text);
             }
         }
-        return true;
     }
 
     private void broadcastToChannel(Channel channel, String message) {

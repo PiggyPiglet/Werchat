@@ -2,7 +2,6 @@ package com.werchat.listeners;
 
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerChatEvent.Formatter;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -11,6 +10,7 @@ import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
 import com.werchat.config.WerchatConfig;
+import com.werchat.integration.papi.PAPIIntegration;
 import com.werchat.storage.PlayerDataManager;
 
 import java.lang.reflect.Method;
@@ -28,9 +28,11 @@ public class ChatListener {
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
     private final WerchatConfig config;
+    private final PAPIIntegration papi;
 
     // Pattern for @mentions
     private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
+    private static final Pattern FORMAT_TOKEN_PATTERN = Pattern.compile("(\\{name\\}|\\{nick\\}|\\{color\\}|\\{sender\\}|\\{msg\\}|\\{prefix\\}|\\{suffix\\})");
 
     // HyperPerms soft dependency - uses reflection to avoid hard dependency
     private static boolean hyperPermsChecked = false;
@@ -54,6 +56,7 @@ public class ChatListener {
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
         this.config = plugin.getConfig();
+        this.papi = PAPIIntegration.register(plugin);
     }
 
     /**
@@ -62,6 +65,20 @@ public class ChatListener {
     private boolean isAdmin(UUID playerId) {
         PermissionsModule perms = PermissionsModule.get();
         return perms.hasPermission(playerId, "*") || perms.hasPermission(playerId, "werchat.*");
+    }
+
+    private boolean bypassesCooldown(UUID playerId) {
+        if (isAdmin(playerId)) {
+            return true;
+        }
+
+        String bypassPermission = config.getCooldownBypassPermission();
+        if (bypassPermission == null || bypassPermission.isBlank()) {
+            return false;
+        }
+
+        PermissionsModule perms = PermissionsModule.get();
+        return perms.hasPermission(playerId, bypassPermission);
     }
 
     /**
@@ -233,15 +250,25 @@ public class ChatListener {
             return;
         }
 
-        // Capture the formatter from the event (kept for potential future use)
-        Formatter externalFormatter = event.getFormatter();
-
         // Cancel default chat - Werchat handles channel routing
         event.setCancelled(true);
 
-        PlayerRef sender = event.getSender();
+        handleChatInput(event.getSender(), event.getContent());
+    }
+
+    /**
+     * Entry point for both native chat events and external plugin API integrations.
+     */
+    public void handleChatInput(PlayerRef sender, String rawMessage) {
+        if (sender == null || rawMessage == null) {
+            return;
+        }
+
         UUID senderId = sender.getUuid();
-        String message = event.getContent();
+        String message = rawMessage;
+        if (message.isBlank()) {
+            return;
+        }
 
         // Check for quick chat symbol triggers (e.g. "!hello" routes to Global)
         Channel channel = null;
@@ -297,8 +324,8 @@ public class ChatListener {
             return;
         }
 
-        // Check cooldown (admins bypass)
-        if (config.isCooldownEnabled() && !isAdmin(senderId)) {
+        // Check cooldown
+        if (config.isCooldownEnabled() && !bypassesCooldown(senderId)) {
             long now = System.currentTimeMillis();
             long lastTime = playerDataManager.getLastMessageTime(senderId);
             long cooldownMs = config.getCooldownSeconds() * 1000L;
@@ -334,8 +361,7 @@ public class ChatListener {
         // Update cooldown time
         playerDataManager.setLastMessageTime(senderId, System.currentTimeMillis());
 
-        // Broadcast to channel, passing the external formatter for prefix support
-        broadcastToChannel(channel, sender, message, externalFormatter);
+        broadcastToChannel(channel, sender, message);
     }
 
     /**
@@ -387,7 +413,7 @@ public class ChatListener {
         return mentioned;
     }
 
-    public void broadcastToChannel(Channel channel, PlayerRef sender, String message, Formatter externalFormatter) {
+    public void broadcastToChannel(Channel channel, PlayerRef sender, String message) {
         UUID senderId = sender.getUuid();
         String senderName = sender.getUsername();
 
@@ -463,8 +489,7 @@ public class ChatListener {
                     }
                 }
 
-                // Format message with mention highlighting for this recipient
-                Message formatted = formatMessageForRecipient(channel, sender, message, memberId, mentionedPlayers, externalFormatter);
+                Message formatted = formatMessageForRecipient(channel, sender, message, memberId, mentionedPlayers);
                 member.sendMessage(formatted);
             }
         }
@@ -478,73 +503,114 @@ public class ChatListener {
      * Integrates with permission plugins for prefix/suffix display.
      */
     private Message formatMessageForRecipient(Channel channel, PlayerRef sender, String message,
-                                               UUID recipientId, Set<UUID> mentionedPlayers,
-                                               Formatter externalFormatter) {
+                                              UUID recipientId, Set<UUID> mentionedPlayers) {
         UUID senderId = sender.getUuid();
         boolean isMentioned = mentionedPlayers.contains(recipientId);
+        PlayerRef recipient = playerDataManager.getOnlinePlayer(recipientId);
 
-        // Get display name (nickname if set, otherwise username)
         String displayName = playerDataManager.getDisplayName(senderId);
-
-        // Get nick color if set, otherwise default white
         String nickColor = playerDataManager.getDisplayColor(senderId);
-        if (nickColor == null) {
-            nickColor = "#FFFFFF";
+        if (nickColor == null) nickColor = "#FFFFFF";
+
+        String prefix = applyPapi(sender, recipient, getPrefix(senderId));
+        String suffix = applyPapi(sender, recipient, getSuffix(senderId));
+
+        Message senderPart = buildSenderPart(senderId, displayName, nickColor);
+        Message messagePart = buildMessagePart(channel, senderId, message, isMentioned);
+
+        Map<String, Message> tokenParts = new HashMap<>();
+        tokenParts.put("{name}", Message.raw(applyPapi(sender, recipient, channel.getName())).color(channel.getColorHex()));
+        tokenParts.put("{nick}", Message.raw(applyPapi(sender, recipient, channel.getNick())).color(channel.getColorHex()));
+        tokenParts.put("{color}", Message.raw(channel.getColorHex()).color(channel.getColorHex()));
+        tokenParts.put("{sender}", senderPart);
+        tokenParts.put("{msg}", messagePart);
+        tokenParts.put("{prefix}", parseColoredString(prefix));
+        tokenParts.put("{suffix}", parseColoredString(suffix));
+
+        String format = channel.getFormat();
+        if (format == null || format.isBlank()) {
+            format = "{nick} {sender}: {msg}";
         }
 
-        // Get prefix/suffix from permission plugins (HyperPerms or LuckPerms)
-        String prefix = getPrefix(senderId);
-        String suffix = getSuffix(senderId);
+        return renderFormat(format, tokenParts, sender, recipient);
+    }
 
-        // Build the message parts
-        List<Message> parts = new ArrayList<>();
-
-        // Channel tag (skip if nick is empty)
-        String channelNick = channel.getNick();
-        if (channelNick != null && !channelNick.isEmpty()) {
-            parts.add(Message.raw("[" + channelNick + "] ").color(channel.getColorHex()));
-        }
-
-        // Prefix from HyperPerms (if any) - already contains color codes
-        if (!prefix.isEmpty()) {
-            parts.add(parseColoredString(prefix));
-        }
-
-        // Player name (with gradient support)
+    private Message buildSenderPart(UUID senderId, String displayName, String nickColor) {
         String gradientEnd = playerDataManager.getNickGradientEnd(senderId);
         if (gradientEnd != null && nickColor != null) {
-            parts.add(createGradientMessage(displayName, nickColor, gradientEnd));
-        } else {
-            parts.add(Message.raw(displayName).color(nickColor));
+            return createGradientMessage(displayName, nickColor, gradientEnd);
         }
+        return Message.raw(displayName).color(nickColor);
+    }
 
-        // Suffix from HyperPerms (if any)
-        if (!suffix.isEmpty()) {
-            parts.add(parseColoredString(suffix));
-        }
-
-        // Colon separator
-        parts.add(Message.raw(": ").color("#FFFFFF"));
-
-        // Message text (player's custom color overrides channel color)
+    private Message buildMessagePart(Channel channel, UUID senderId, String message, boolean isMentioned) {
         if (isMentioned && config.isMentionsEnabled()) {
-            parts.add(Message.raw(message).color(config.getMentionColor()).bold(true));
-        } else {
-            String msgColor = playerDataManager.getMsgColor(senderId);
-            String msgGradientEnd = playerDataManager.getMsgGradientEnd(senderId);
-            if (msgColor != null && msgGradientEnd != null) {
-                // Player has gradient message color
-                parts.add(createGradientMessage(message, msgColor, msgGradientEnd));
-            } else if (msgColor != null) {
-                // Player has solid message color
-                parts.add(Message.raw(message).color(msgColor));
-            } else {
-                // Use channel message color (falls back to tag color if not set)
-                parts.add(Message.raw(message).color(channel.getEffectiveMessageColorHex()));
-            }
+            return Message.raw(message).color(config.getMentionColor()).bold(true);
         }
 
+        String msgColor = playerDataManager.getMsgColor(senderId);
+        String msgGradientEnd = playerDataManager.getMsgGradientEnd(senderId);
+        if (msgColor != null && msgGradientEnd != null) {
+            return createGradientMessage(message, msgColor, msgGradientEnd);
+        }
+        if (msgColor != null) {
+            return Message.raw(message).color(msgColor);
+        }
+        return Message.raw(message).color(channel.getEffectiveMessageColorHex());
+    }
+
+    private Message renderFormat(String format, Map<String, Message> tokenParts, PlayerRef sender, PlayerRef recipient) {
+        List<Message> parts = new ArrayList<>();
+        Matcher matcher = FORMAT_TOKEN_PATTERN.matcher(format);
+        int last = 0;
+
+        while (matcher.find()) {
+            appendLiteralPart(parts, format.substring(last, matcher.start()), sender, recipient);
+
+            Message tokenPart = tokenParts.get(matcher.group(1));
+            if (tokenPart != null) {
+                parts.add(tokenPart);
+            }
+
+            last = matcher.end();
+        }
+
+        appendLiteralPart(parts, format.substring(last), sender, recipient);
+
+        if (parts.isEmpty()) {
+            return Message.raw("");
+        }
+        if (parts.size() == 1) {
+            return parts.get(0);
+        }
         return Message.join(parts.toArray(new Message[0]));
+    }
+
+    private void appendLiteralPart(List<Message> parts, String literal, PlayerRef sender, PlayerRef recipient) {
+        if (literal == null || literal.isEmpty()) {
+            return;
+        }
+
+        String resolved = applyPapi(sender, recipient, literal);
+        if (!resolved.isEmpty()) {
+            parts.add(parseColoredString(resolved));
+        }
+    }
+
+    private String applyPapi(PlayerRef sender, PlayerRef recipient, String text) {
+        if (text == null || text.isEmpty() || papi == null) {
+            return text == null ? "" : text;
+        }
+
+        try {
+            String resolved = papi.setPlaceholders(sender, text);
+            if (recipient != null) {
+                resolved = papi.setRelationalPlaceholders(sender, recipient, resolved);
+            }
+            return resolved == null ? text : resolved;
+        } catch (Exception e) {
+            return text;
+        }
     }
 
     /**

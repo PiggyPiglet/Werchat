@@ -503,20 +503,6 @@ public class ChannelCommand extends CommandBase {
         ctx.sendMessage(Message.raw("Left: " + channel.getName()).color("#55FF55"));
     }
 
-    private void focusChannel(CommandContext ctx, UUID playerId, String channelName) {
-        Channel channel = channelManager.getChannel(channelName);
-        if (channel == null) {
-            ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF0000"));
-            return;
-        }
-        if (!channel.isMember(playerId)) {
-            ctx.sendMessage(Message.raw("Join channel first: " + channel.getName()).color("#FFFF55"));
-            return;
-        }
-        playerDataManager.setFocusedChannel(playerId, channel.getName());
-        ctx.sendMessage(Message.raw("Now speaking in: " + channel.getName()).color("#55FF55"));
-    }
-
     private void createChannel(CommandContext ctx, UUID playerId, String name, String nick) {
         // Requires werchat.create permission
         if (!hasWerchatPermission(ctx, "werchat.create")) {

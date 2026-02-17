@@ -85,18 +85,6 @@ public class Channel {
     }
     public boolean hasPassword() { return password != null && !password.isEmpty(); }
 
-    public String formatMessage(String senderName, String message, String prefix, String suffix) {
-        String colorHex = String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue());
-        return format
-                .replace("{name}", name)
-                .replace("{nick}", nick)
-                .replace("{color}", colorHex)
-                .replace("{sender}", senderName)
-                .replace("{msg}", message)
-                .replace("{prefix}", prefix != null ? prefix : "")
-                .replace("{suffix}", suffix != null ? suffix : "");
-    }
-
     // Getters/Setters
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

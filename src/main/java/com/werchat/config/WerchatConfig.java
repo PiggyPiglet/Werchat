@@ -181,9 +181,7 @@ public class WerchatConfig {
     public boolean isAllowPrivateMessages() { return allowPrivateMessages; }
 
     public String getBanMessage() { return banMessage; }
-    public void setBanMessage(String msg) { this.banMessage = msg; }
     public String getMuteMessage() { return muteMessage; }
-    public void setMuteMessage(String msg) { this.muteMessage = msg; }
 
     // Word Filter
     public boolean isWordFilterEnabled() { return wordFilterEnabled; }

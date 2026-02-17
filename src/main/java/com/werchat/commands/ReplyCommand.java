@@ -43,6 +43,11 @@ public class ReplyCommand extends CommandBase {
 
         UUID senderId = ctx.sender().getUuid();
 
+        if (!plugin.getConfig().isAllowPrivateMessages()) {
+            ctx.sendMessage(Message.raw("Private messaging is disabled on this server").color("#FF5555"));
+            return;
+        }
+
         // Check permission
         PermissionsModule perms = PermissionsModule.get();
         if (!perms.hasPermission(senderId, "werchat.msg")

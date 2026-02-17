@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.werchat"
-version = "1.1.8"
+version = "1.1.9"
 
 java {
     // Note: Compiling with Java 25, targeting Java 21 bytecode for Hytale compatibility
@@ -13,11 +13,13 @@ java {
 
 repositories {
     mavenCentral()
+    maven("https://repo.helpch.at/releases")
 }
 
 dependencies {
     // Hytale Server API - place HytaleServer.jar in libs/ directory
     compileOnly(files("libs/HytaleServer.jar"))
+    compileOnly("at.helpch:placeholderapi-hytale:1.0.6")
     implementation("com.google.code.gson:gson:2.10.1")
 }
 
@@ -64,7 +66,17 @@ tasks.jar {
 tasks.register<Copy>("deploy") {
     dependsOn(tasks.jar)
     from(tasks.jar.get().archiveFile)
-    into(System.getenv("APPDATA") + "/Hytale/UserData/Mods")
+    val modsDir = file(System.getenv("APPDATA") + "/Hytale/UserData/Mods")
+    into(modsDir)
+    doFirst {
+        modsDir.listFiles()?.forEach { file ->
+            if (file.name.startsWith("Werchat-") && file.name.endsWith(".jar")) {
+                if (!file.delete()) {
+                    println("Warning: Could not delete old jar ${file.name} (possibly in use)")
+                }
+            }
+        }
+    }
     doLast {
         println("Deployed to Hytale Mods folder!")
     }
