@@ -80,8 +80,8 @@ public class PlayerListener {
             }
         }
 
-        if (config.isShowJoinLeaveMessages()) {
-            broadcastMembershipEvent(playerName + " joined the server", playerId);
+        if (config.isShowJoinLeaveMessages() && firstJoinedChannel != null) {
+            broadcastMembershipEvent(playerName + " joined the server");
         }
     }
 
@@ -91,7 +91,7 @@ public class PlayerListener {
         String playerName = player.getUsername();
 
         if (config.isShowJoinLeaveMessages()) {
-            broadcastMembershipEvent(playerName + " left the server", playerId);
+            broadcastMembershipEvent(playerName + " left the server");
         }
 
         // Don't remove from channels - persist membership across sessions
@@ -99,22 +99,10 @@ public class PlayerListener {
         playerDataManager.clearTransientData(playerId);
     }
 
-    private void broadcastMembershipEvent(String text, UUID playerId) {
-        String focusedName = playerDataManager.getFocusedChannel(playerId);
-        Channel focusedChannel = focusedName != null ? channelManager.getChannel(focusedName) : null;
-
-        Channel announceChannel = null;
-        if (focusedChannel != null && focusedChannel.isVerbose()) {
-            announceChannel = focusedChannel;
-        } else {
-            Channel fallback = channelManager.getDefaultChannel();
-            if (fallback != null && fallback.isVerbose()) {
-                announceChannel = fallback;
-            }
-        }
-
-        if (announceChannel != null) {
-            broadcastToChannel(announceChannel, text);
+    private void broadcastMembershipEvent(String text) {
+        Channel defaultChannel = channelManager.getDefaultChannel();
+        if (defaultChannel != null) {
+            broadcastToChannel(defaultChannel, text);
         }
     }
 

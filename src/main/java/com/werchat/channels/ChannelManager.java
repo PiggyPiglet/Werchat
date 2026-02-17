@@ -20,6 +20,7 @@ import java.util.logging.Level;
 public class ChannelManager {
 
     private static final long SAVE_DEBOUNCE_SECONDS = 20;
+    private static final String DEFAULT_CHANNEL_FORMAT = "[{nick}] {sender}: {msg}";
 
     private final WerchatPlugin plugin;
     private final Map<String, Channel> channels;
@@ -143,7 +144,7 @@ public class ChannelManager {
         Channel global = new Channel("Global");
         global.setNick("Global");
         global.setColor(Color.WHITE);
-        global.setFormat("{nick} {sender}: {msg}");
+        global.setFormat(DEFAULT_CHANNEL_FORMAT);
         global.setDistance(0);
         global.setDefault(true);
         global.setAutoJoin(true);
@@ -154,7 +155,7 @@ public class ChannelManager {
         Channel local = new Channel("Local");
         local.setNick("Local");
         local.setColor(Color.GRAY);
-        local.setFormat("{nick} {sender}: {msg}");
+        local.setFormat(DEFAULT_CHANNEL_FORMAT);
         local.setDistance(100);
         local.setAutoJoin(true);
         registerChannel(local);
@@ -162,7 +163,7 @@ public class ChannelManager {
         Channel trade = new Channel("Trade");
         trade.setNick("Trade");
         trade.setColor(new Color(255, 215, 0));
-        trade.setFormat("{nick} {sender}: {msg}");
+        trade.setFormat(DEFAULT_CHANNEL_FORMAT);
         trade.setAutoJoin(true);
         trade.setQuickChatSymbol("~");
         registerChannel(trade);
@@ -170,7 +171,7 @@ public class ChannelManager {
         Channel support = new Channel("Support");
         support.setNick("Support");
         support.setColor(Color.GREEN);
-        support.setFormat("{nick} {sender}: {msg}");
+        support.setFormat(DEFAULT_CHANNEL_FORMAT);
         support.setAutoJoin(true);
         registerChannel(support);
     }
