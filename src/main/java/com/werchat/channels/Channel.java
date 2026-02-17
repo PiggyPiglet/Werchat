@@ -2,6 +2,7 @@ package com.werchat.channels;
 
 import java.awt.Color;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
@@ -54,9 +55,7 @@ public class Channel {
 
         this.worlds = new HashSet<>();
 
-        this.joinPermission = "werchat.channel." + name.toLowerCase() + ".join";
-        this.speakPermission = "werchat.channel." + name.toLowerCase() + ".speak";
-        this.seePermission = "werchat.channel." + name.toLowerCase() + ".see";
+        refreshPermissionNodes();
     }
 
     public boolean addMember(UUID playerId) {
@@ -87,7 +86,10 @@ public class Channel {
 
     // Getters/Setters
     public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
+    public void setName(String name) {
+        this.name = name;
+        refreshPermissionNodes();
+    }
     public String getNick() { return nick; }
     public void setNick(String nick) { this.nick = nick; }
     public Color getColor() { return color; }
@@ -139,4 +141,11 @@ public class Channel {
     // Backward compat helper for single-world migration
     public void setWorld(String world) { worlds.clear(); if (world != null && !world.isEmpty()) worlds.add(world); }
     public String getWorldsDisplay() { return worlds.isEmpty() ? "All worlds" : String.join(", ", worlds); }
+
+    private void refreshPermissionNodes() {
+        String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        this.joinPermission = "werchat.channel." + lowerName + ".join";
+        this.speakPermission = "werchat.channel." + lowerName + ".speak";
+        this.seePermission = "werchat.channel." + lowerName + ".see";
+    }
 }

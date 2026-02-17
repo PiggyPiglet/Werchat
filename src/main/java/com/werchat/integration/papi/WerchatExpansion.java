@@ -10,6 +10,8 @@ import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
 import com.werchat.storage.PlayerDataManager;
 
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
@@ -18,6 +20,47 @@ import java.util.stream.Collectors;
  * Built-in PlaceholderAPI expansion for Werchat data.
  */
 public class WerchatExpansion extends PlaceholderExpansion implements Configurable<WerchatExpansionConfig> {
+
+    private static final String CHANNEL_PREFIX = "channel_";
+    private static final List<String> CHANNEL_PLACEHOLDER_KEYS = List.of(
+        "effective_msg_colorhex",
+        "has_quickchatsymbol",
+        "join_permission",
+        "see_permission",
+        "speak_permission",
+        "quickchatsymbol",
+        "moderator_count",
+        "muted_count",
+        "member_count",
+        "worlds_display",
+        "worlds_count",
+        "msg_color_hex",
+        "has_password",
+        "has_msg_color",
+        "has_worlds",
+        "is_moderator",
+        "is_focusable",
+        "is_default",
+        "is_autojoin",
+        "is_global",
+        "is_local",
+        "is_verbose",
+        "is_member",
+        "is_banned",
+        "is_muted",
+        "owner_name",
+        "distance",
+        "format",
+        "colorhex",
+        "worlds",
+        "owner",
+        "color",
+        "nick",
+        "name",
+        "msg_color"
+    ).stream()
+        .sorted((a, b) -> Integer.compare(b.length(), a.length()))
+        .toList();
 
     private final WerchatPlugin plugin;
 
@@ -47,10 +90,7 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
 
     @Override
     public boolean canRegister() {
-        String activeChannel = getConfig().activeChannel();
-        if (activeChannel == null || activeChannel.isEmpty()) {
-            return super.canRegister();
-        }
+        String activeChannel = getActiveChannelAlias();
 
         boolean conflict = plugin.getChannelManager().getAllChannels().stream()
             .map(Channel::getName)
@@ -77,24 +117,24 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         PlayerDataManager playerDataManager = plugin.getPlayerDataManager();
         UUID playerId = playerRef != null ? playerRef.getUuid() : null;
 
-        if (params.startsWith("channel_")) {
-            String remaining = params.substring("channel_".length());
-            String[] split = remaining.split("_", 2);
-            if (split.length != 2) {
+        String normalizedParams = params.toLowerCase(Locale.ROOT);
+
+        if (normalizedParams.startsWith(CHANNEL_PREFIX)) {
+            String remaining = params.substring(CHANNEL_PREFIX.length());
+            ChannelPlaceholderRequest request = parseChannelPlaceholderRequest(remaining);
+            if (request == null) {
                 return null;
             }
 
-            String channelSelector = split[0];
-            String key = split[1];
-            Channel channel = resolveChannel(channelManager, playerDataManager, playerId, channelSelector);
+            Channel channel = resolveChannel(channelManager, playerDataManager, playerId, request.selector());
             if (channel == null) {
                 return "";
             }
 
-            return resolveChannelPlaceholder(channel, playerDataManager, playerId, key);
+            return resolveChannelPlaceholder(channel, playerDataManager, playerId, request.key());
         }
 
-        return switch (params) {
+        return switch (normalizedParams) {
             case "channels_total" -> String.valueOf(channelManager.getAllChannels().size());
             case "channels" -> channelManager.getAllChannels().stream()
                 .map(Channel::getName)
@@ -124,9 +164,44 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         };
     }
 
-    private Channel resolveChannel(ChannelManager channelManager, PlayerDataManager playerDataManager,
-                                   UUID playerId, String selector) {
-        if (selector.equalsIgnoreCase(getConfig().activeChannel())) {
+    private ChannelPlaceholderRequest parseChannelPlaceholderRequest(String remaining) {
+        if (remaining == null || remaining.isBlank()) {
+            return null;
+        }
+
+        for (String key : CHANNEL_PLACEHOLDER_KEYS) {
+            int keyLen = key.length();
+            int separatorIndex = remaining.length() - keyLen - 1;
+            if (separatorIndex <= 0 || separatorIndex >= remaining.length()) {
+                continue;
+            }
+            if (remaining.charAt(separatorIndex) != '_') {
+                continue;
+            }
+            if (!remaining.regionMatches(true, separatorIndex + 1, key, 0, keyLen)) {
+                continue;
+            }
+
+            String selector = remaining.substring(0, separatorIndex);
+            if (selector.isBlank()) {
+                return null;
+            }
+
+            return new ChannelPlaceholderRequest(selector, key);
+        }
+
+        return null;
+    }
+
+    private Channel resolveChannel(ChannelManager channelManager,
+                                   PlayerDataManager playerDataManager,
+                                   UUID playerId,
+                                   String selector) {
+        if (selector == null || selector.isBlank()) {
+            return null;
+        }
+
+        if (selector.equalsIgnoreCase(getActiveChannelAlias())) {
             if (playerId == null) {
                 return null;
             }
@@ -188,6 +263,14 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         };
     }
 
+    private String getActiveChannelAlias() {
+        WerchatExpansionConfig config = getConfig();
+        if (config == null || config.activeChannel() == null || config.activeChannel().isBlank()) {
+            return "active";
+        }
+        return config.activeChannel();
+    }
+
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
@@ -200,5 +283,8 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
     @Override
     public WerchatExpansionConfig provideDefault() {
         return new WerchatExpansionConfig("active");
+    }
+
+    private record ChannelPlaceholderRequest(String selector, String key) {
     }
 }

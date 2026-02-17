@@ -234,15 +234,20 @@ Top-level Werchat placeholders:
 | `%werchat_channel%` | Focused channel name for the player |
 | `%werchat_ignored_players_total%` | Number of ignored players |
 | `%werchat_ignored_players%` | Comma-separated ignored player names |
-| `%werchat_known_name%` | Player's known username |
+| `%werchat_known_name%` | Real account username |
 | `%werchat_display_colour%` | Player display color |
 | `%werchat_display_color%` | Player display color (US spelling alias) |
 | `%werchat_msg_color%` | Player message color |
 | `%werchat_msg_gradient_end%` | Player message gradient end color |
 | `%werchat_nick_color%` | Player nickname color |
 | `%werchat_nick_gradient_end%` | Player nickname gradient end color |
-| `%werchat_nick%` | Player nickname |
-| `%werchat_display_name%` | Effective display name |
+| `%werchat_nick%` | Custom nickname only (blank if none set) |
+| `%werchat_display_name%` | Final chat name (nickname if set, else username) |
+
+Name placeholder semantics:
+- `known_name`: always the real account name.
+- `nick`: only the custom nickname value, can be blank.
+- `display_name`: what Werchat renders in chat.
 
 Channel-scoped Werchat placeholder syntax:
 
