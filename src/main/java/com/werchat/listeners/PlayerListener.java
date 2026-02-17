@@ -3,6 +3,7 @@ package com.werchat.listeners;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerDisconnectEvent;
+import com.hypixel.hytale.server.core.permissions.PermissionsModule;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
@@ -27,6 +28,13 @@ public class PlayerListener {
         this.config = plugin.getConfig();
     }
 
+    private boolean hasChannelJoinPermission(UUID playerId, Channel channel) {
+        PermissionsModule perms = PermissionsModule.get();
+        return perms.hasPermission(playerId, channel.getJoinPermission())
+            || perms.hasPermission(playerId, "werchat.*")
+            || perms.hasPermission(playerId, "*");
+    }
+
     public void onPlayerConnect(PlayerConnectEvent event) {
         PlayerRef player = event.getPlayerRef();
         UUID playerId = player.getUuid();
@@ -35,25 +43,39 @@ public class PlayerListener {
         // Track online player
         playerDataManager.trackPlayer(playerId, player);
 
+        Channel firstJoinedChannel = null;
+
         // Auto-join channels flagged with autoJoin, optionally skipping default when disabled in config
         for (Channel channel : channelManager.getAllChannels()) {
             boolean shouldAutoJoin = channel.isAutoJoin();
             if (channel.isDefault() && !config.isAutoJoinDefault()) {
                 shouldAutoJoin = false;
             }
-            if (shouldAutoJoin && !channel.isBanned(playerId)) {
-                channel.addMember(playerId);
+            if (config.isEnforceChannelPermissions() && !hasChannelJoinPermission(playerId, channel)) {
+                shouldAutoJoin = false;
+            }
+            if (shouldAutoJoin && !channel.isBanned(playerId) && channel.addMember(playerId)) {
+                if (firstJoinedChannel == null) {
+                    firstJoinedChannel = channel;
+                }
             }
         }
 
         Channel defaultChannel = channelManager.getDefaultChannel();
         if (defaultChannel != null && config.isAutoJoinDefault() && !defaultChannel.isBanned(playerId)) {
-            defaultChannel.addMember(playerId);
+            boolean canJoinDefault = !config.isEnforceChannelPermissions() || hasChannelJoinPermission(playerId, defaultChannel);
+            if (canJoinDefault && defaultChannel.addMember(playerId) && firstJoinedChannel == null) {
+                firstJoinedChannel = defaultChannel;
+            }
         }
 
-        // Set focused channel if none set
-        if (playerDataManager.getFocusedChannel(playerId) == null) {
-            if (defaultChannel != null) {
+        // Ensure focused channel points to a channel the player is currently in.
+        String focusedName = playerDataManager.getFocusedChannel(playerId);
+        Channel focusedChannel = focusedName != null ? channelManager.getChannel(focusedName) : null;
+        if (focusedChannel == null || !focusedChannel.isMember(playerId)) {
+            if (firstJoinedChannel != null) {
+                playerDataManager.setFocusedChannel(playerId, firstJoinedChannel.getName());
+            } else if (defaultChannel != null) {
                 playerDataManager.setFocusedChannel(playerId, defaultChannel.getName());
             }
         }

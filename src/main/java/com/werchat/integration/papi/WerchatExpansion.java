@@ -27,6 +27,8 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         "effective_msg_colorhex",
         "has_quickchatsymbol",
         "join_permission",
+        "read_permission",
+        "view_permission",
         "see_permission",
         "speak_permission",
         "quickchatsymbol",
@@ -225,6 +227,8 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             case "color" -> channel.getColorHex();
             case "effective_msg_colorhex" -> channel.getEffectiveMessageColorHex();
             case "join_permission" -> channel.getJoinPermission();
+            case "read_permission" -> channel.getReadPermission();
+            case "view_permission" -> channel.getViewPermission();
             case "msg_color_hex" -> nullToEmpty(channel.getMessageColorHex());
             case "msg_color" -> nullToEmpty(channel.getMessageColorHex());
             case "quickchatsymbol" -> nullToEmpty(channel.getQuickChatSymbol());

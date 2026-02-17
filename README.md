@@ -140,6 +140,15 @@ Channel moderators can use admin commands on their own channels without needing 
 
 Players with `werchat.*` or `*` also bypass cooldowns and the word filter.
 
+Per-channel permission nodes:
+- `werchat.channel.<channel>.join`
+- `werchat.channel.<channel>.speak`
+- `werchat.channel.<channel>.read` (primary receive/read node)
+- `werchat.channel.<channel>.view` (legacy read alias)
+- `werchat.channel.<channel>.see` (legacy read alias)
+
+These nodes are enforced in normal `/ch` + chat flow only when `channelPermissions.enforce` is enabled.
+
 </details>
 
 ## Configuration
@@ -155,6 +164,9 @@ Config file: `mods/com.werchat_Werchat/config.json`
   "autoJoinDefault": true,
   "showJoinLeaveMessages": true,
   "allowPrivateMessages": true,
+  "channelPermissions": {
+    "enforce": false
+  },
   "banMessage": "You have been banned from {channel}",
   "muteMessage": "You have been muted in {channel}",
   "wordFilter": {
@@ -185,6 +197,7 @@ Config file: `mods/com.werchat_Werchat/config.json`
 | `autoJoinDefault` | `true` | Auto-join default channel on connect |
 | `showJoinLeaveMessages` | `true` | Broadcast join/leave messages to channels |
 | `allowPrivateMessages` | `true` | Whether `/msg` is enabled |
+| `channelPermissions.enforce` | `false` | Enforce per-channel `join`/`speak`/`read` nodes in normal `/ch` + chat flow |
 | `banMessage` | `"You have been banned from {channel}"` | Message shown to banned players |
 | `muteMessage` | `"You have been muted in {channel}"` | Message shown to muted players |
 | `wordFilter.enabled` | `false` | Enable the word filter |
@@ -200,6 +213,12 @@ Config file: `mods/com.werchat_Werchat/config.json`
 | `mentions.enabled` | `true` | Enable @mention highlighting |
 | `mentions.color` | `"#FFFF55"` | Hex color for mention highlights |
 | `ignoreChatCancellations` | `false` | Process chat even if cancelled by other plugins |
+
+When `channelPermissions.enforce` is enabled:
+- `join` checks run in `/ch join` and `/ch <channel>` auto-join.
+- `speak` checks run before sending messages.
+- `read` checks run for sender selection and per-recipient delivery.
+- Password checks still apply; permission nodes never bypass channel passwords.
 
 </details>
 
@@ -275,10 +294,12 @@ Direct channel selector alias:
 | `color` | Channel tag color as hex (`#RRGGBB`) |
 | `effective_msg_colorhex` | Final message text color hex (message color override or tag color fallback) |
 | `join_permission` | Permission node string associated with joining this channel (`werchat.channel.<name>.join`) |
+| `read_permission` | Permission node string associated with reading/receiving this channel (`werchat.channel.<name>.read`) |
+| `view_permission` | Legacy alias for read permission node (`werchat.channel.<name>.view`) |
+| `see_permission` | Legacy alias for read permission node (`werchat.channel.<name>.see`) |
 | `msg_color_hex` | Explicit message text color hex override (`#RRGGBB`), blank when unset |
 | `msg_color` | Explicit message text color hex (`#RRGGBB`), blank when unset |
 | `quickchatsymbol` | Quick-chat trigger symbol (for example `!`), blank when unset |
-| `see_permission` | Permission node string associated with viewing/receiving this channel (`werchat.channel.<name>.see`) |
 | `speak_permission` | Permission node string associated with speaking in this channel (`werchat.channel.<name>.speak`) |
 | `worlds_count` | Number of configured world restrictions |
 | `worlds` | Worlds shown as text (`All worlds` or a comma-separated list) |

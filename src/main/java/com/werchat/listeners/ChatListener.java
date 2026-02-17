@@ -67,6 +67,23 @@ public class ChatListener {
         return perms.hasPermission(playerId, "*") || perms.hasPermission(playerId, "werchat.*");
     }
 
+    private boolean hasPermission(UUID playerId, String permission) {
+        PermissionsModule perms = PermissionsModule.get();
+        return perms.hasPermission(playerId, permission)
+            || perms.hasPermission(playerId, "werchat.*")
+            || perms.hasPermission(playerId, "*");
+    }
+
+    private boolean hasChannelSpeakPermission(UUID playerId, Channel channel) {
+        return hasPermission(playerId, channel.getSpeakPermission());
+    }
+
+    private boolean hasChannelReadPermission(UUID playerId, Channel channel) {
+        return hasPermission(playerId, channel.getReadPermission())
+            || hasPermission(playerId, channel.getViewPermission())
+            || hasPermission(playerId, channel.getSeePermission());
+    }
+
     private boolean bypassesCooldown(UUID playerId) {
         if (isAdmin(playerId)) {
             return true;
@@ -300,6 +317,19 @@ public class ChatListener {
                 channel = channelManager.getDefaultChannel();
             }
         }
+        if (channel == null) {
+            sender.sendMessage(Message.raw("No chat channel is available").color("#FF0000"));
+            return;
+        }
+
+        if (config.isEnforceChannelPermissions() && !hasChannelSpeakPermission(senderId, channel)) {
+            sender.sendMessage(Message.raw("You don't have permission to speak in " + channel.getName()).color("#FF0000"));
+            return;
+        }
+        if (config.isEnforceChannelPermissions() && !hasChannelReadPermission(senderId, channel)) {
+            sender.sendMessage(Message.raw("You don't have permission to read " + channel.getName()).color("#FF0000"));
+            return;
+        }
 
         // Check world restriction - fall back to default if player isn't in the channel's world
         if (channel.isWorldRestricted() && !isPlayerInChannelWorld(sender, channel)) {
@@ -450,6 +480,9 @@ public class ChatListener {
 
         // Send to all channel members who aren't ignoring the sender
         for (UUID memberId : channel.getMembers()) {
+            if (config.isEnforceChannelPermissions() && !hasChannelReadPermission(memberId, channel)) {
+                continue;
+            }
             if (playerDataManager.isIgnoring(memberId, senderId)) {
                 continue;
             }

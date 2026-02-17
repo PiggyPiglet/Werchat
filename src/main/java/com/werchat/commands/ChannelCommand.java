@@ -30,10 +30,28 @@ public class ChannelCommand extends CommandBase {
      */
     private boolean hasWerchatPermission(CommandContext ctx, String permission) {
         UUID playerId = ctx.sender().getUuid();
+        return hasPermission(playerId, permission);
+    }
+
+    private boolean hasPermission(UUID playerId, String permission) {
         PermissionsModule perms = PermissionsModule.get();
         return perms.hasPermission(playerId, permission)
             || perms.hasPermission(playerId, "werchat.*")
             || perms.hasPermission(playerId, "*");
+    }
+
+    private boolean enforceChannelPermissions() {
+        return plugin.getConfig().isEnforceChannelPermissions();
+    }
+
+    private boolean hasChannelJoinPermission(UUID playerId, Channel channel) {
+        return hasPermission(playerId, channel.getJoinPermission());
+    }
+
+    private boolean hasChannelReadPermission(UUID playerId, Channel channel) {
+        return hasPermission(playerId, channel.getReadPermission())
+            || hasPermission(playerId, channel.getViewPermission())
+            || hasPermission(playerId, channel.getSeePermission());
     }
 
     /**
@@ -157,7 +175,7 @@ public class ChannelCommand extends CommandBase {
                     ctx.sendMessage(Message.raw("Usage: /ch who <channel>").color("#FF5555"));
                     return;
                 }
-                showMembers(ctx, arg1);
+                showMembers(ctx, playerId, arg1);
                 return;
             }
             case "color" -> {
@@ -193,7 +211,7 @@ public class ChannelCommand extends CommandBase {
                     ctx.sendMessage(Message.raw("Usage: /ch info <channel>").color("#FF5555"));
                     return;
                 }
-                showChannelInfo(ctx, arg1);
+                showChannelInfo(ctx, playerId, arg1);
                 return;
             }
             case "rename" -> {
@@ -316,10 +334,19 @@ public class ChannelCommand extends CommandBase {
             return;
         }
 
+        if (enforceChannelPermissions() && !hasChannelReadPermission(playerId, channel)) {
+            ctx.sendMessage(Message.raw("You don't have permission to read " + channel.getName()).color("#FF5555"));
+            return;
+        }
+
         // Auto-join if not a member
         if (!channel.isMember(playerId)) {
             if (channel.isBanned(playerId)) {
                 ctx.sendMessage(Message.raw("You are banned from " + channel.getName()).color("#FF5555"));
+                return;
+            }
+            if (enforceChannelPermissions() && !hasChannelJoinPermission(playerId, channel)) {
+                ctx.sendMessage(Message.raw("You don't have permission to join " + channel.getName()).color("#FF5555"));
                 return;
             }
             if (channel.hasPassword()) {
@@ -459,6 +486,9 @@ public class ChannelCommand extends CommandBase {
         ctx.sendMessage(Message.raw("=== Channels ===").color("#55FF55"));
         String focused = playerDataManager.getFocusedChannel(playerId);
         for (Channel ch : channelManager.getAllChannels()) {
+            if (enforceChannelPermissions() && !hasChannelReadPermission(playerId, ch) && !ch.isMember(playerId)) {
+                continue;
+            }
             String status = ch.isMember(playerId) ? " [Joined]" : "";
             if (ch.getName().equalsIgnoreCase(focused)) status += " [*]";
             if (ch.isWorldRestricted()) status += " [W:" + ch.getWorldsDisplay() + "]";
@@ -471,6 +501,16 @@ public class ChannelCommand extends CommandBase {
         if (channel == null) {
             ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF0000"));
             return;
+        }
+        if (enforceChannelPermissions()) {
+            if (!hasChannelJoinPermission(playerId, channel)) {
+                ctx.sendMessage(Message.raw("You don't have permission to join this channel").color("#FF5555"));
+                return;
+            }
+            if (!hasChannelReadPermission(playerId, channel)) {
+                ctx.sendMessage(Message.raw("You don't have permission to read this channel").color("#FF5555"));
+                return;
+            }
         }
         if (channel.isBanned(playerId)) {
             ctx.sendMessage(Message.raw("You are banned from this channel").color("#FF0000"));
@@ -522,10 +562,14 @@ public class ChannelCommand extends CommandBase {
         ctx.sendMessage(Message.raw("Created channel: " + channel.getName()).color("#55FF55"));
     }
 
-    private void showMembers(CommandContext ctx, String channelName) {
+    private void showMembers(CommandContext ctx, UUID playerId, String channelName) {
         Channel channel = channelManager.findChannel(channelName);
         if (channel == null) {
             ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF5555"));
+            return;
+        }
+        if (enforceChannelPermissions() && !hasChannelReadPermission(playerId, channel)) {
+            ctx.sendMessage(Message.raw("You don't have permission to read this channel").color("#FF5555"));
             return;
         }
 
@@ -634,10 +678,14 @@ public class ChannelCommand extends CommandBase {
         ctx.sendMessage(Message.raw("Nick set to: " + nick).color("#55FF55"));
     }
 
-    private void showChannelInfo(CommandContext ctx, String channelName) {
+    private void showChannelInfo(CommandContext ctx, UUID playerId, String channelName) {
         Channel channel = channelManager.findChannel(channelName);
         if (channel == null) {
             ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF5555"));
+            return;
+        }
+        if (enforceChannelPermissions() && !hasChannelReadPermission(playerId, channel)) {
+            ctx.sendMessage(Message.raw("You don't have permission to read this channel").color("#FF5555"));
             return;
         }
         ctx.sendMessage(Message.raw("").color("#000000"));

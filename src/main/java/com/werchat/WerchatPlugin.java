@@ -71,6 +71,10 @@ public class WerchatPlugin extends JavaPlugin {
 
         getLogger().at(Level.INFO).log("Werchat enabled! %d channels loaded.", channelManager.getChannelCount());
         getLogger().at(Level.INFO).log("Persistence mode: dirty + debounced saves (20s)");
+        getLogger().at(Level.INFO).log(
+            "Channel permission enforcement (core command/chat flow): %s",
+            config.isEnforceChannelPermissions() ? "ENABLED" : "DISABLED"
+        );
 
         // Log enabled features
         if (config.isWordFilterEnabled()) {

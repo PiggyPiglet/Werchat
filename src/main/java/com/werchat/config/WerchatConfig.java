@@ -18,6 +18,7 @@ public class WerchatConfig {
     private boolean autoJoinDefault = true;
     private boolean showJoinLeaveMessages = true;
     private boolean allowPrivateMessages = true;
+    private boolean enforceChannelPermissions = false;
 
     // Moderation messages
     private String banMessage = "You have been banned from {channel}";
@@ -69,6 +70,15 @@ public class WerchatConfig {
                 if (root.has("autoJoinDefault")) autoJoinDefault = root.get("autoJoinDefault").getAsBoolean();
                 if (root.has("showJoinLeaveMessages")) showJoinLeaveMessages = root.get("showJoinLeaveMessages").getAsBoolean();
                 if (root.has("allowPrivateMessages")) allowPrivateMessages = root.get("allowPrivateMessages").getAsBoolean();
+                if (root.has("enforceChannelPermissions")) {
+                    enforceChannelPermissions = root.get("enforceChannelPermissions").getAsBoolean();
+                }
+                if (root.has("channelPermissions")) {
+                    JsonObject cp = root.getAsJsonObject("channelPermissions");
+                    if (cp.has("enforce")) {
+                        enforceChannelPermissions = cp.get("enforce").getAsBoolean();
+                    }
+                }
 
                 // Moderation messages
                 if (root.has("banMessage")) banMessage = root.get("banMessage").getAsString();
@@ -131,6 +141,9 @@ public class WerchatConfig {
             root.addProperty("autoJoinDefault", autoJoinDefault);
             root.addProperty("showJoinLeaveMessages", showJoinLeaveMessages);
             root.addProperty("allowPrivateMessages", allowPrivateMessages);
+            JsonObject channelPermissions = new JsonObject();
+            channelPermissions.addProperty("enforce", enforceChannelPermissions);
+            root.add("channelPermissions", channelPermissions);
 
             // Moderation messages
             root.addProperty("banMessage", banMessage);
@@ -179,6 +192,7 @@ public class WerchatConfig {
     public boolean isAutoJoinDefault() { return autoJoinDefault; }
     public boolean isShowJoinLeaveMessages() { return showJoinLeaveMessages; }
     public boolean isAllowPrivateMessages() { return allowPrivateMessages; }
+    public boolean isEnforceChannelPermissions() { return enforceChannelPermissions; }
 
     public String getBanMessage() { return banMessage; }
     public String getMuteMessage() { return muteMessage; }
