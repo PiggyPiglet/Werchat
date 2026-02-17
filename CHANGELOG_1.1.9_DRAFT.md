@@ -39,9 +39,7 @@ Status: Unreleased
   - `channel` retained as legacy alias,
   - dynamic channel placeholder patterns documented,
   - `worlds_display` simplified to `worlds`.
-- Read/receive terminology now uses `read` as primary:
-  - primary node/placeholder key is `read`,
-  - `view` and `see` kept as compatibility aliases.
+- Read/receive terminology now uses `read` as the channel node/placeholder key.
 
 ## Fixed
 

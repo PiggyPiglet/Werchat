@@ -70,9 +70,6 @@ public class WerchatConfig {
                 if (root.has("autoJoinDefault")) autoJoinDefault = root.get("autoJoinDefault").getAsBoolean();
                 if (root.has("showJoinLeaveMessages")) showJoinLeaveMessages = root.get("showJoinLeaveMessages").getAsBoolean();
                 if (root.has("allowPrivateMessages")) allowPrivateMessages = root.get("allowPrivateMessages").getAsBoolean();
-                if (root.has("enforceChannelPermissions")) {
-                    enforceChannelPermissions = root.get("enforceChannelPermissions").getAsBoolean();
-                }
                 if (root.has("channelPermissions")) {
                     JsonObject cp = root.getAsJsonObject("channelPermissions");
                     if (cp.has("enforce")) {

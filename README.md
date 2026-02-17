@@ -144,8 +144,6 @@ Per-channel permission nodes:
 - `werchat.channel.<channel>.join`
 - `werchat.channel.<channel>.speak`
 - `werchat.channel.<channel>.read` (primary receive/read node)
-- `werchat.channel.<channel>.view` (legacy read alias)
-- `werchat.channel.<channel>.see` (legacy read alias)
 
 These nodes are enforced in normal `/ch` + chat flow only when `channelPermissions.enforce` is enabled.
 
@@ -295,8 +293,6 @@ Direct channel selector alias:
 | `effective_msg_colorhex` | Final message text color hex (message color override or tag color fallback) |
 | `join_permission` | Permission node string associated with joining this channel (`werchat.channel.<name>.join`) |
 | `read_permission` | Permission node string associated with reading/receiving this channel (`werchat.channel.<name>.read`) |
-| `view_permission` | Legacy alias for read permission node (`werchat.channel.<name>.view`) |
-| `see_permission` | Legacy alias for read permission node (`werchat.channel.<name>.see`) |
 | `msg_color_hex` | Explicit message text color hex override (`#RRGGBB`), blank when unset |
 | `msg_color` | Explicit message text color hex (`#RRGGBB`), blank when unset |
 | `quickchatsymbol` | Quick-chat trigger symbol (for example `!`), blank when unset |

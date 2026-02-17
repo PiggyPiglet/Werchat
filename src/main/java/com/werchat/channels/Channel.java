@@ -32,8 +32,6 @@ public class Channel {
     private String joinPermission;
     private String speakPermission;
     private String readPermission;
-    private String viewPermission;
-    private String seePermission;
 
     private UUID owner;
     private String quickChatSymbol; // e.g. "!" to allow "!hello" to route to this channel
@@ -372,14 +370,6 @@ public class Channel {
         return readPermission;
     }
 
-    public String getSeePermission() {
-        return seePermission;
-    }
-
-    public String getViewPermission() {
-        return viewPermission;
-    }
-
     public UUID getOwner() {
         return owner;
     }
@@ -491,8 +481,5 @@ public class Channel {
         this.joinPermission = "werchat.channel." + lowerName + ".join";
         this.speakPermission = "werchat.channel." + lowerName + ".speak";
         this.readPermission = "werchat.channel." + lowerName + ".read";
-        // Legacy aliases retained for compatibility with older configs/docs.
-        this.viewPermission = "werchat.channel." + lowerName + ".view";
-        this.seePermission = "werchat.channel." + lowerName + ".see";
     }
 }

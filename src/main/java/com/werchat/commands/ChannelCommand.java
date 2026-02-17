@@ -49,9 +49,7 @@ public class ChannelCommand extends CommandBase {
     }
 
     private boolean hasChannelReadPermission(UUID playerId, Channel channel) {
-        return hasPermission(playerId, channel.getReadPermission())
-            || hasPermission(playerId, channel.getViewPermission())
-            || hasPermission(playerId, channel.getSeePermission());
+        return hasPermission(playerId, channel.getReadPermission());
     }
 
     /**
