@@ -8,6 +8,10 @@ import java.awt.Color;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
@@ -15,18 +19,28 @@ import java.util.logging.Level;
  */
 public class ChannelManager {
 
+    private static final long SAVE_DEBOUNCE_SECONDS = 20;
+
     private final WerchatPlugin plugin;
     private final Map<String, Channel> channels;
     private final Gson gson;
+    private final ScheduledExecutorService saveExecutor;
+    private final Object saveStateLock = new Object();
+    private ScheduledFuture<?> pendingSaveTask;
+    private boolean suppressDirtyNotifications;
     private Channel defaultChannel;
 
     public ChannelManager(WerchatPlugin plugin) {
         this.plugin = plugin;
         this.channels = new HashMap<>();
         this.gson = new GsonBuilder().setPrettyPrinting().create();
+        this.saveExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.suppressDirtyNotifications = false;
     }
 
     public void loadChannels() {
+        suppressDirtyNotifications = true;
+
         Path dataDir = plugin.getDataDirectory();
         Path channelsFile = dataDir.resolve("channels.json");
         Path membersFile = dataDir.resolve("channel-members.json");
@@ -93,6 +107,8 @@ public class ChannelManager {
             }
         }
 
+        suppressDirtyNotifications = false;
+
         // Always save to ensure both files exist and old format gets migrated
         saveChannels();
     }
@@ -157,6 +173,46 @@ public class ChannelManager {
         support.setFormat("{nick} {sender}: {msg}");
         support.setAutoJoin(true);
         registerChannel(support);
+    }
+
+    public void markDirty() {
+        if (suppressDirtyNotifications) {
+            return;
+        }
+
+        synchronized (saveStateLock) {
+            if (pendingSaveTask != null) {
+                pendingSaveTask.cancel(false);
+            }
+            pendingSaveTask = saveExecutor.schedule(this::flushDebouncedSave, SAVE_DEBOUNCE_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private void flushDebouncedSave() {
+        synchronized (saveStateLock) {
+            pendingSaveTask = null;
+        }
+
+        saveChannels();
+    }
+
+    public void shutdownDebouncedSaver() {
+        synchronized (saveStateLock) {
+            if (pendingSaveTask != null) {
+                pendingSaveTask.cancel(false);
+                pendingSaveTask = null;
+            }
+        }
+
+        saveExecutor.shutdown();
+        try {
+            if (!saveExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+                saveExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            saveExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void saveChannels() {
@@ -369,16 +425,25 @@ public class ChannelManager {
 
     public boolean registerChannel(Channel channel) {
         if (channels.containsKey(channel.getName().toLowerCase())) return false;
+
+        channel.setChangeListener(this::markDirty);
         channels.put(channel.getName().toLowerCase(), channel);
+        markDirty();
         return true;
     }
 
     public boolean unregisterChannel(String name) {
         Channel channel = channels.remove(name.toLowerCase());
+        if (channel != null) {
+            channel.setChangeListener(null);
+        }
         if (channel != null && channel == defaultChannel) {
             defaultChannel = channels.values().stream()
                     .filter(Channel::isDefault).findFirst()
                     .orElse(channels.values().stream().findFirst().orElse(null));
+        }
+        if (channel != null) {
+            markDirty();
         }
         return channel != null;
     }
@@ -440,6 +505,7 @@ public class ChannelManager {
         if (defaultChannel != null) defaultChannel.setDefault(false);
         channel.setDefault(true);
         defaultChannel = channel;
+        markDirty();
     }
 
     public Collection<Channel> getAllChannels() { return Collections.unmodifiableCollection(channels.values()); }
@@ -452,7 +518,6 @@ public class ChannelManager {
         channel.setOwner(creator);
         channel.addModerator(creator);
         registerChannel(channel);
-        saveChannels();
         return channel;
     }
 
@@ -464,7 +529,7 @@ public class ChannelManager {
         channels.remove(oldName.toLowerCase());
         channel.setName(newName);
         channels.put(newName.toLowerCase(), channel);
-        saveChannels();
+        markDirty();
         return true;
     }
 

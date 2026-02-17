@@ -33,7 +33,7 @@
 
 **Message Colors** — Independent message text colors and gradients, separate from nickname colors.
 
-**Persistent Storage** — JSON-based data with auto-save every 5 minutes and immediate save on changes.
+**Persistent Storage** — JSON-based data with dirty + debounced saves (20s) and a final flush on shutdown.
 
 ## Quick Start
 

@@ -12,20 +12,30 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 public class PlayerDataManager {
+
+    private static final long NICKNAME_SAVE_DEBOUNCE_SECONDS = 20;
 
     private final WerchatPlugin plugin;
     private final Map<UUID, PlayerChatData> playerData;
     private final Map<UUID, PlayerRef> onlinePlayers;
     private final Map<UUID, String> knownNames; // persists after disconnect
+    private final ScheduledExecutorService nicknameSaveExecutor;
+    private final Object nicknameSaveLock = new Object();
+    private ScheduledFuture<?> pendingNicknameSave;
 
     public PlayerDataManager(WerchatPlugin plugin) {
         this.plugin = plugin;
         this.playerData = new HashMap<>();
         this.onlinePlayers = new HashMap<>();
         this.knownNames = new HashMap<>();
+        this.nicknameSaveExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
     public void trackPlayer(UUID playerId, PlayerRef player) {
@@ -93,17 +103,17 @@ public class PlayerDataManager {
     public String getNickname(UUID playerId) { return getPlayerData(playerId).getNickname(); }
     public void setNickname(UUID playerId, String nickname) {
         getPlayerData(playerId).setNickname(nickname);
-        saveNicknames();
+        markNicknamesDirty();
     }
     public String getNickColor(UUID playerId) { return getPlayerData(playerId).getNickColor(); }
     public void setNickColor(UUID playerId, String color) {
         getPlayerData(playerId).setNickColor(color);
-        saveNicknames();
+        markNicknamesDirty();
     }
     public String getNickGradientEnd(UUID playerId) { return getPlayerData(playerId).getNickGradientEnd(); }
     public void setNickGradientEnd(UUID playerId, String color) {
         getPlayerData(playerId).setNickGradientEnd(color);
-        saveNicknames();
+        markNicknamesDirty();
     }
     public boolean hasGradient(UUID playerId) { return getPlayerData(playerId).hasGradient(); }
     public boolean hasNickname(UUID playerId) { return getPlayerData(playerId).hasNickname(); }
@@ -112,12 +122,12 @@ public class PlayerDataManager {
     public String getMsgColor(UUID playerId) { return getPlayerData(playerId).getMsgColor(); }
     public void setMsgColor(UUID playerId, String color) {
         getPlayerData(playerId).setMsgColor(color);
-        saveNicknames();
+        markNicknamesDirty();
     }
     public String getMsgGradientEnd(UUID playerId) { return getPlayerData(playerId).getMsgGradientEnd(); }
     public void setMsgGradientEnd(UUID playerId, String color) {
         getPlayerData(playerId).setMsgGradientEnd(color);
-        saveNicknames();
+        markNicknamesDirty();
     }
     public boolean hasMsgColor(UUID playerId) { return getPlayerData(playerId).hasMsgColor(); }
     public boolean hasMsgGradient(UUID playerId) { return getPlayerData(playerId).hasMsgGradient(); }
@@ -125,7 +135,7 @@ public class PlayerDataManager {
         PlayerChatData data = getPlayerData(playerId);
         data.setMsgColor(null);
         data.setMsgGradientEnd(null);
-        saveNicknames();
+        markNicknamesDirty();
     }
 
     public String getDisplayName(UUID playerId) {
@@ -146,12 +156,52 @@ public class PlayerDataManager {
         data.setNickname(null);
         data.setNickColor(null);
         data.setNickGradientEnd(null);
-        saveNicknames();
+        markNicknamesDirty();
     }
 
     // Persistence for nicknames
     private Path getNicknamesFile() {
         return plugin.getDataDirectory().resolve("nicknames.json");
+    }
+
+    private void markNicknamesDirty() {
+        synchronized (nicknameSaveLock) {
+            if (pendingNicknameSave != null) {
+                pendingNicknameSave.cancel(false);
+            }
+            pendingNicknameSave = nicknameSaveExecutor.schedule(
+                this::flushDebouncedNicknameSave,
+                NICKNAME_SAVE_DEBOUNCE_SECONDS,
+                TimeUnit.SECONDS
+            );
+        }
+    }
+
+    private void flushDebouncedNicknameSave() {
+        synchronized (nicknameSaveLock) {
+            pendingNicknameSave = null;
+        }
+
+        saveNicknames();
+    }
+
+    public void shutdownDebouncedSaver() {
+        synchronized (nicknameSaveLock) {
+            if (pendingNicknameSave != null) {
+                pendingNicknameSave.cancel(false);
+                pendingNicknameSave = null;
+            }
+        }
+
+        nicknameSaveExecutor.shutdown();
+        try {
+            if (!nicknameSaveExecutor.awaitTermination(2, TimeUnit.SECONDS)) {
+                nicknameSaveExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            nicknameSaveExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void loadNicknames() {

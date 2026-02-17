@@ -20,9 +20,6 @@ import com.werchat.listeners.PlayerListener;
 import com.werchat.storage.PlayerDataManager;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 
 /**
@@ -38,7 +35,6 @@ public class WerchatPlugin extends JavaPlugin {
     private ChatListener chatListener;
     private PlayerListener playerListener;
     private WerchatAPI api;
-    private ScheduledExecutorService autoSaveScheduler;
 
     public WerchatPlugin(@Nonnull JavaPluginInit init) {
         super(init);
@@ -73,18 +69,8 @@ public class WerchatPlugin extends JavaPlugin {
         registerListeners();
         registerCommands();
 
-        // Auto-save every 5 minutes to keep player names updated in channel-members.json
-        autoSaveScheduler = Executors.newSingleThreadScheduledExecutor();
-        autoSaveScheduler.scheduleAtFixedRate(() -> {
-            try {
-                channelManager.saveChannels();
-                playerDataManager.saveNicknames();
-            } catch (Exception e) {
-                getLogger().at(Level.WARNING).log("Auto-save failed: %s", e.getMessage());
-            }
-        }, 5, 5, TimeUnit.MINUTES);
-
         getLogger().at(Level.INFO).log("Werchat enabled! %d channels loaded.", channelManager.getChannelCount());
+        getLogger().at(Level.INFO).log("Persistence mode: dirty + debounced saves (20s)");
 
         // Log enabled features
         if (config.isWordFilterEnabled()) {
@@ -115,9 +101,12 @@ public class WerchatPlugin extends JavaPlugin {
 
     @Override
     protected void shutdown() {
-        // Stop auto-save
-        if (autoSaveScheduler != null) {
-            autoSaveScheduler.shutdown();
+        // Stop debounced savers before final flush
+        if (channelManager != null) {
+            channelManager.shutdownDebouncedSaver();
+        }
+        if (playerDataManager != null) {
+            playerDataManager.shutdownDebouncedSaver();
         }
 
         // Save data

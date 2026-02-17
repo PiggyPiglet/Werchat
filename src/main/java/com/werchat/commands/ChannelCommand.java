@@ -583,8 +583,6 @@ public class ChannelCommand extends CommandBase {
                 channel.setMessageColor(null);
             }
 
-            channelManager.saveChannels();
-
             if (channel.hasMessageColor()) {
                 ctx.sendMessage(Message.join(
                     Message.raw("Tag color: ").color("#AAAAAA"),
@@ -620,7 +618,6 @@ public class ChannelCommand extends CommandBase {
             channel.setPassword(password);
             ctx.sendMessage(Message.raw("Password set for " + channel.getName()).color("#55FF55"));
         }
-        channelManager.saveChannels();
     }
 
     private void setChannelNick(CommandContext ctx, UUID playerId, String channelName, String nick) {
@@ -634,7 +631,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.setNick(nick);
-        channelManager.saveChannels();
         ctx.sendMessage(Message.raw("Nick set to: " + nick).color("#55FF55"));
     }
 
@@ -719,7 +715,6 @@ public class ChannelCommand extends CommandBase {
         }
         String name = channel.getName();
         if (channelManager.deleteChannel(name)) {
-            channelManager.saveChannels();
             ctx.sendMessage(Message.raw("Deleted channel: " + name).color("#55FF55"));
         } else {
             ctx.sendMessage(Message.raw("Cannot delete channel (must have at least one channel)").color("#FF5555"));
@@ -775,7 +770,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.addModerator(targetId);
-        channelManager.saveChannels();
         ctx.sendMessage(Message.join(
             Message.raw(playerName).color("#FFFFFF"),
             Message.raw(" is now a moderator of ").color("#55FF55"),
@@ -805,7 +799,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.removeModerator(targetId);
-        channelManager.saveChannels();
         ctx.sendMessage(Message.join(
             Message.raw(playerName).color("#FFFFFF"),
             Message.raw(" is no longer a moderator of ").color("#55FF55"),
@@ -830,7 +823,6 @@ public class ChannelCommand extends CommandBase {
                 return;
             }
             channel.setDistance(distance);
-            channelManager.saveChannels();
             if (distance == 0) {
                 ctx.sendMessage(Message.join(
                     Message.raw(channel.getName()).color(channel.getColorHex()),
@@ -869,7 +861,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.ban(targetId);
-        channelManager.saveChannels();
 
         // Notify the banned player
         String banMsg = plugin.getConfig().getBanMessage().replace("{channel}", channel.getName());
@@ -903,7 +894,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.unban(targetId);
-        channelManager.saveChannels();
         ctx.sendMessage(Message.join(
             Message.raw(playerName).color("#FFFFFF"),
             Message.raw(" has been unbanned from ").color("#55FF55"),
@@ -932,7 +922,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.mute(targetId);
-        channelManager.saveChannels();
 
         // Notify the muted player
         String muteMsg = plugin.getConfig().getMuteMessage().replace("{channel}", channel.getName());
@@ -966,7 +955,6 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.unmute(targetId);
-        channelManager.saveChannels();
         ctx.sendMessage(Message.join(
             Message.raw(playerName).color("#FFFFFF"),
             Message.raw(" has been unmuted in ").color("#55FF55"),
@@ -987,7 +975,6 @@ public class ChannelCommand extends CommandBase {
 
         if (action.equalsIgnoreCase("none") || action.equalsIgnoreCase("clear") || action.equalsIgnoreCase("off")) {
             channel.clearWorlds();
-            channelManager.saveChannels();
             ctx.sendMessage(Message.join(
                 Message.raw(channel.getName()).color(channel.getColorHex()),
                 Message.raw(" is no longer world-restricted").color("#55FF55")
@@ -1011,7 +998,6 @@ public class ChannelCommand extends CommandBase {
             }
 
             channel.addWorld(worldName);
-            channelManager.saveChannels();
             ctx.sendMessage(Message.join(
                 Message.raw("Added world ").color("#55FF55"),
                 Message.raw(worldName).color("#FFFFFF"),
@@ -1034,7 +1020,6 @@ public class ChannelCommand extends CommandBase {
                 return;
             }
             channel.removeWorld(worldName);
-            channelManager.saveChannels();
             ctx.sendMessage(Message.join(
                 Message.raw("Removed world ").color("#55FF55"),
                 Message.raw(worldName).color("#FFFFFF"),
@@ -1061,7 +1046,6 @@ public class ChannelCommand extends CommandBase {
 
             // World name provided directly - set as the only world
             channel.setWorld(action);
-            channelManager.saveChannels();
             ctx.sendMessage(Message.join(
                 Message.raw(channel.getName()).color(channel.getColorHex()),
                 Message.raw(" is now restricted to world: ").color("#55FF55"),
