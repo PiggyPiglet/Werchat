@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 public class WerchatExpansion extends PlaceholderExpansion implements Configurable<WerchatExpansionConfig> {
 
     private static final String CHANNEL_PREFIX = "channel_";
+    private static final String SELECTED_CHANNEL_KEY_PREFIX = "selected_channel_";
+    private static final String KEY_SEPARATOR = "__";
     private static final List<String> CHANNEL_PLACEHOLDER_KEYS = List.of(
         "effective_msg_colorhex",
         "has_quickchatsymbol",
@@ -102,7 +104,7 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         if (conflict) {
             plugin.getLogger().at(Level.WARNING).log(
                 "[Werchat PAPI] Active channel alias '%s' matches a real channel name. " +
-                    "Use channel_active_* placeholders for focused channel and channel_<name>_* for fixed channels.",
+                    "Use selected_channel_<key> for focused channel and channel_<name>_<key> for fixed channels.",
                 activeChannel
             );
         }
@@ -122,19 +124,49 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
 
         String normalizedParams = params.toLowerCase(Locale.ROOT);
 
-        if (normalizedParams.startsWith(CHANNEL_PREFIX)) {
-            String remaining = params.substring(CHANNEL_PREFIX.length());
-            ChannelPlaceholderRequest request = parseChannelPlaceholderRequest(remaining);
-            if (request == null) {
+        if (normalizedParams.startsWith(SELECTED_CHANNEL_KEY_PREFIX)) {
+            String key = params.substring(SELECTED_CHANNEL_KEY_PREFIX.length()).toLowerCase(Locale.ROOT);
+            if (key.isBlank() || !isKnownChannelPlaceholderKey(key)) {
                 return null;
             }
-
-            Channel channel = resolveChannel(channelManager, playerDataManager, playerId, request.selector());
-            if (channel == null) {
+            if (playerId == null) {
                 return "";
             }
 
-            return resolveChannelPlaceholder(channel, playerDataManager, playerId, request.key());
+            Channel selected = channelManager.getChannel(playerDataManager.getFocusedChannel(playerId));
+            if (selected == null) {
+                return "";
+            }
+
+            return resolveChannelPlaceholder(selected, playerDataManager, playerId, key);
+        }
+
+        if (normalizedParams.startsWith(CHANNEL_PREFIX)) {
+            String remaining = params.substring(CHANNEL_PREFIX.length());
+            ChannelPlaceholderRequest request = parseLegacyChannelKeyedPlaceholderRequest(remaining);
+            if (request != null) {
+                Channel channel = resolveChannel(channelManager, playerDataManager, playerId, request.selector());
+                if (channel != null) {
+                    return resolveChannelPlaceholder(channel, playerDataManager, playerId, request.key());
+                }
+            }
+
+            // Backup keyed syntax for edge cases:
+            // %werchat_channel_<selector>__<key>%
+            request = parseExplicitChannelKeyedPlaceholderRequest(remaining);
+            if (request != null) {
+                Channel channel = resolveChannel(channelManager, playerDataManager, playerId, request.selector());
+                if (channel != null) {
+                    return resolveChannelPlaceholder(channel, playerDataManager, playerId, request.key());
+                }
+            }
+
+            // Alias: %werchat_channel_<selector>% => channel name
+            Channel channel = resolveChannel(channelManager, playerDataManager, playerId, remaining);
+            if (channel == null) {
+                return "";
+            }
+            return resolveChannelPlaceholder(channel, playerDataManager, playerId, "name");
         }
 
         return switch (normalizedParams) {
@@ -158,6 +190,9 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             case "known_name" -> playerId != null ? playerDataManager.getKnownName(playerId) : "";
             case "display_colour", "display_color" -> playerId != null ? nullToEmpty(playerDataManager.getDisplayColor(playerId)) : "";
             case "msg_color" -> playerId != null ? nullToEmpty(playerDataManager.getMsgColor(playerId)) : "";
+            case "msg_gradient" -> playerId != null
+                ? formatGradient(playerDataManager.getMsgColor(playerId), playerDataManager.getMsgGradientEnd(playerId))
+                : "";
             case "msg_gradient_end" -> playerId != null ? nullToEmpty(playerDataManager.getMsgGradientEnd(playerId)) : "";
             case "nick_color" -> playerId != null ? nullToEmpty(playerDataManager.getNickColor(playerId)) : "";
             case "nick_gradient_end" -> playerId != null ? nullToEmpty(playerDataManager.getNickGradientEnd(playerId)) : "";
@@ -167,11 +202,13 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         };
     }
 
-    private ChannelPlaceholderRequest parseChannelPlaceholderRequest(String remaining) {
+    private ChannelPlaceholderRequest parseLegacyChannelKeyedPlaceholderRequest(String remaining) {
         if (remaining == null || remaining.isBlank()) {
             return null;
         }
 
+        // Primary keyed syntax:
+        // %werchat_channel_<selector>_<key>%
         for (String key : CHANNEL_PLACEHOLDER_KEYS) {
             int keyLen = key.length();
             int separatorIndex = remaining.length() - keyLen - 1;
@@ -193,8 +230,33 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             return new ChannelPlaceholderRequest(selector, key);
         }
 
-        // Alias: %werchat_channel_<selector>% => channel name
-        return new ChannelPlaceholderRequest(remaining, "name");
+        return null;
+    }
+
+    private ChannelPlaceholderRequest parseExplicitChannelKeyedPlaceholderRequest(String remaining) {
+        if (remaining == null || remaining.isBlank()) {
+            return null;
+        }
+
+        int explicitSeparator = remaining.lastIndexOf(KEY_SEPARATOR);
+        if (explicitSeparator <= 0 || explicitSeparator + KEY_SEPARATOR.length() >= remaining.length()) {
+            return null;
+        }
+
+        String selector = remaining.substring(0, explicitSeparator);
+        String key = remaining.substring(explicitSeparator + KEY_SEPARATOR.length()).toLowerCase(Locale.ROOT);
+        if (selector.isBlank() || !isKnownChannelPlaceholderKey(key)) {
+            return null;
+        }
+
+        return new ChannelPlaceholderRequest(selector, key);
+    }
+
+    private boolean isKnownChannelPlaceholderKey(String key) {
+        if (key == null || key.isBlank()) {
+            return false;
+        }
+        return CHANNEL_PLACEHOLDER_KEYS.contains(key.toLowerCase(Locale.ROOT));
     }
 
     private Channel resolveChannel(ChannelManager channelManager,
@@ -298,6 +360,13 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String formatGradient(String start, String end) {
+        if (start == null || start.isBlank() || end == null || end.isBlank()) {
+            return "";
+        }
+        return start + "," + end;
     }
 
     @Override

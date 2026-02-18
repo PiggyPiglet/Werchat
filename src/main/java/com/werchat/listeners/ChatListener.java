@@ -59,6 +59,12 @@ public class ChatListener {
         this.papi = PAPIIntegration.register(plugin);
     }
 
+    public void ensurePapiExpansionRegistered(PlayerRef player) {
+        if (papi != null) {
+            papi.ensureExpansionRegistered(player);
+        }
+    }
+
     /**
      * Check if player is an admin/op (has * or werchat.* permission)
      */
@@ -639,7 +645,7 @@ public class ChatListener {
                 resolved = papi.setRelationalPlaceholders(sender, recipient, resolved);
             }
             return resolved == null ? text : resolved;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             return text;
         }
     }

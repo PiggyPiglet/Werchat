@@ -18,11 +18,13 @@ import java.util.UUID;
  */
 public class PlayerListener {
 
+    private final ChatListener chatListener;
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
     private final WerchatConfig config;
 
     public PlayerListener(WerchatPlugin plugin) {
+        this.chatListener = plugin.getChatListener();
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
         this.config = plugin.getConfig();
@@ -42,6 +44,12 @@ public class PlayerListener {
 
         // Track online player
         playerDataManager.trackPlayer(playerId, player);
+
+        // Ensure Werchat PlaceholderAPI expansion is registered early so
+        // /papi parse works before first chat message is sent.
+        if (chatListener != null) {
+            chatListener.ensurePapiExpansionRegistered(player);
+        }
 
         Channel firstJoinedChannel = null;
 

@@ -251,15 +251,18 @@ Top-level Werchat placeholders:
 | `%werchat_channels%` | Comma-separated channel names |
 | `%werchat_default_channel%` | Default channel name |
 | `%werchat_selected_channel%` | Focused channel name for the player (recommended) |
+| `%werchat_selected_channel_<key>%` | Focused channel field/value by key (preferred keyed form) |
 | `%werchat_channel%` | Focused channel name for the player (legacy alias) |
 | `%werchat_channel_<selector>%` | Specific channel by selector (returns channel name) |
-| `%werchat_channel_<selector>_<key>%` | Specific channel field/value by selector + key |
+| `%werchat_channel_<selector>_<key>%` | Specific channel field/value by selector + key (primary keyed form) |
+| `%werchat_channel_<selector>__<key>%` | Edge-case keyed syntax for selectors with underscore ambiguity |
 | `%werchat_ignored_players_total%` | Number of ignored players |
 | `%werchat_ignored_players%` | Comma-separated ignored player names |
 | `%werchat_known_name%` | Real account username |
 | `%werchat_display_colour%` | Player display color |
 | `%werchat_display_color%` | Player display color (US spelling alias) |
 | `%werchat_msg_color%` | Player message color |
+| `%werchat_msg_gradient%` | Player message gradient as `#START,#END` (blank when no gradient) |
 | `%werchat_msg_gradient_end%` | Player message gradient end color |
 | `%werchat_nick_color%` | Player nickname color |
 | `%werchat_nick_gradient_end%` | Player nickname gradient end color |
@@ -273,15 +276,28 @@ Name placeholder semantics:
 
 Channel-scoped Werchat placeholder syntax:
 
+Preferred keyed forms:
+
+`%werchat_selected_channel_<key>%`
+
 `%werchat_channel_<selector>_<key>%`
 
 Direct channel selector alias:
 
 `%werchat_channel_<selector>%` (returns that channel's name)
 
+Edge-case keyed form (use only when selector/key underscore ambiguity appears):
+
+`%werchat_channel_<selector>__<key>%`
+
 `<selector>` values:
 - Exact channel name or nick.
-- The expansion active alias (default: `active`) to target the player's focused channel.
+- Channel names with underscores are supported (example: `trade_name`).
+- Legacy active alias (`active` by default) is still supported for compatibility.
+
+Key separator note:
+- `_` (single underscore) is the primary keyed separator.
+- `__` (double underscore) is the backup separator for ambiguous channel names (example: `trade_name`).
 
 `<key>` values:
 
