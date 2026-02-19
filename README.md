@@ -39,7 +39,7 @@
 
 ## Quick Start
 
-1. Drop `Werchat-1.10.0.jar` in your `mods/` folder
+1. Drop `Werchat-1.10.1.jar` in your `mods/` folder
 2. Start your server — four default channels are created automatically
 3. Use `/ch list` to see channels, `/ch join <channel>` to join one
 4. Type `!hello` to quick-chat in Global or `~hello` for Trade
@@ -391,7 +391,7 @@ API notes:
 
 ```bash
 ./gradlew buildRelease
-# Output: build/libs/Werchat-1.10.0.jar (built for latest release channel)
+# Output: build/libs/Werchat-1.10.1.jar (built for latest release channel)
 ```
 
 Build variants:
