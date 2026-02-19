@@ -23,6 +23,8 @@
 
 **Mention System** — `@player` highlighting with configurable color and bold formatting.
 
+**Clickable URLs** — Chat and private messages automatically turn URLs into clickable links (configurable).
+
 **Moderation Tools** — Per-channel ban, mute, moderators, word filter (censor/block modes), and chat cooldown.
 
 **Permission Integration** — HyperPerms and LuckPerms prefix/suffix support with hex color codes.
@@ -37,7 +39,7 @@
 
 ## Quick Start
 
-1. Drop `Werchat-1.1.9.jar` in your `mods/` folder
+1. Drop `Werchat-1.10.0.jar` in your `mods/` folder
 2. Start your server — four default channels are created automatically
 3. Use `/ch list` to see channels, `/ch join <channel>` to join one
 4. Type `!hello` to quick-chat in Global or `~hello` for Trade
@@ -187,6 +189,9 @@ Config file: `mods/com.werchat_Werchat/config.json`
     "enabled": true,
     "color": "#FFFF55"
   },
+  "clickableUrls": {
+    "enabled": true
+  },
   "ignoreChatCancellations": false
 }
 ```
@@ -212,6 +217,7 @@ Config file: `mods/com.werchat_Werchat/config.json`
 | `cooldown.bypassPermission` | `"werchat.cooldown.bypass"` | Permission to bypass cooldown |
 | `mentions.enabled` | `true` | Enable @mention highlighting |
 | `mentions.color` | `"#FFFF55"` | Hex color for mention highlights |
+| `clickableUrls.enabled` | `true` | Convert detected URLs in chat/PM text into clickable links |
 | `ignoreChatCancellations` | `false` | Process chat even if cancelled by other plugins |
 
 When `channelPermissions.enforce` is enabled:
@@ -377,7 +383,7 @@ API notes:
 
 ```bash
 ./gradlew buildRelease
-# Output: build/libs/Werchat-1.1.9.jar (built for latest release channel)
+# Output: build/libs/Werchat-1.10.0.jar (built for latest release channel)
 ```
 
 Build variants:

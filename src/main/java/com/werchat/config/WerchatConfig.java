@@ -42,6 +42,9 @@ public class WerchatConfig {
     private boolean mentionsEnabled = true;
     private String mentionColor = "#FFFF55"; // Yellow
 
+    // URL handling
+    private boolean clickableUrlsEnabled = true;
+
     // Chat Cancellation
     private boolean ignoreChatCancellations = false;
 
@@ -113,6 +116,12 @@ public class WerchatConfig {
                     if (m.has("color")) mentionColor = m.get("color").getAsString();
                 }
 
+                // URL handling
+                if (root.has("clickableUrls")) {
+                    JsonObject clickableUrls = root.getAsJsonObject("clickableUrls");
+                    if (clickableUrls.has("enabled")) clickableUrlsEnabled = clickableUrls.get("enabled").getAsBoolean();
+                }
+
                 // Chat Cancellation
                 if (root.has("ignoreChatCancellations")) ignoreChatCancellations = root.get("ignoreChatCancellations").getAsBoolean();
 
@@ -172,6 +181,11 @@ public class WerchatConfig {
             m.addProperty("color", mentionColor);
             root.add("mentions", m);
 
+            // URL handling
+            JsonObject clickableUrls = new JsonObject();
+            clickableUrls.addProperty("enabled", clickableUrlsEnabled);
+            root.add("clickableUrls", clickableUrls);
+
             // Chat Cancellation
             root.addProperty("ignoreChatCancellations", ignoreChatCancellations);
 
@@ -211,6 +225,9 @@ public class WerchatConfig {
     // Mentions
     public boolean isMentionsEnabled() { return mentionsEnabled; }
     public String getMentionColor() { return mentionColor; }
+
+    // URL handling
+    public boolean isClickableUrlsEnabled() { return clickableUrlsEnabled; }
 
     // Chat Cancellation
     public boolean isIgnoreChatCancellations() { return ignoreChatCancellations; }

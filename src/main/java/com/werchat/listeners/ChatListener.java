@@ -33,6 +33,10 @@ public class ChatListener {
     // Pattern for @mentions
     private static final Pattern MENTION_PATTERN = Pattern.compile("@(\\w+)");
     private static final Pattern FORMAT_TOKEN_PATTERN = Pattern.compile("(\\{name\\}|\\{nick\\}|\\{color\\}|\\{sender\\}|\\{msg\\}|\\{prefix\\}|\\{suffix\\})");
+    private static final Pattern URL_PATTERN = Pattern.compile(
+        "(?i)\\b((?:https?://)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}(?::\\d{2,5})?(?:/[^\\s]*)?)"
+    );
+    private static final String URL_TRAILING_PUNCTUATION = ".,!?;:)]}\"'";
 
     // HyperPerms soft dependency - uses reflection to avoid hard dependency
     private static boolean hyperPermsChecked = false;
@@ -582,18 +586,18 @@ public class ChatListener {
 
     private Message buildMessagePart(Channel channel, UUID senderId, String message, boolean isMentioned) {
         if (isMentioned && config.isMentionsEnabled()) {
-            return Message.raw(message).color(config.getMentionColor()).bold(true);
+            return buildStyledMessageWithLinks(message, config.getMentionColor(), true, false);
         }
 
         String msgColor = playerDataManager.getMsgColor(senderId);
         String msgGradientEnd = playerDataManager.getMsgGradientEnd(senderId);
         if (msgColor != null && msgGradientEnd != null) {
-            return createGradientMessage(message, msgColor, msgGradientEnd);
+            return createGradientMessage(message, msgColor, msgGradientEnd, false, false);
         }
         if (msgColor != null) {
-            return Message.raw(message).color(msgColor);
+            return buildStyledMessageWithLinks(message, msgColor, false, false);
         }
-        return Message.raw(message).color(channel.getEffectiveMessageColorHex());
+        return buildStyledMessageWithLinks(message, channel.getEffectiveMessageColorHex(), false, false);
     }
 
     private Message renderFormat(String format, Map<String, Message> tokenParts, PlayerRef sender, PlayerRef recipient) {
@@ -778,11 +782,20 @@ public class ChatListener {
      * Create a gradient-colored message where each character transitions from startColor to endColor.
      */
     private Message createGradientMessage(String text, String startColor, String endColor) {
+        return createGradientMessage(text, startColor, endColor, false, false, false);
+    }
+
+    private Message createGradientMessage(String text, String startColor, String endColor, boolean bold, boolean italic) {
+        return createGradientMessage(text, startColor, endColor, bold, italic, true);
+    }
+
+    private Message createGradientMessage(String text, String startColor, String endColor,
+                                          boolean bold, boolean italic, boolean allowLinks) {
         if (text == null || text.isEmpty()) {
             return Message.raw("");
         }
         if (text.length() == 1) {
-            return Message.raw(text).color(startColor);
+            return createStyledPart(text, startColor, bold, italic, null);
         }
 
         // Parse hex colors
@@ -793,8 +806,10 @@ public class ChatListener {
         int endG = Integer.parseInt(endColor.substring(3, 5), 16);
         int endB = Integer.parseInt(endColor.substring(5, 7), 16);
 
-        List<Message> parts = new ArrayList<>();
         int len = text.length();
+        List<UrlRange> urlRanges = allowLinks ? extractUrlRanges(text) : Collections.emptyList();
+        String[] linkTargets = buildLinkTargetIndex(urlRanges, len);
+        List<Message> parts = new ArrayList<>(len);
 
         for (int i = 0; i < len; i++) {
             float ratio = (float) i / (len - 1);
@@ -802,10 +817,102 @@ public class ChatListener {
             int g = Math.round(startG + (endG - startG) * ratio);
             int b = Math.round(startB + (endB - startB) * ratio);
             String color = String.format("#%02X%02X%02X", r, g, b);
-            parts.add(Message.raw(String.valueOf(text.charAt(i))).color(color));
+            String linkTarget = linkTargets == null ? null : linkTargets[i];
+            parts.add(createStyledPart(String.valueOf(text.charAt(i)), color, bold, italic, linkTarget));
         }
 
         return Message.join(parts.toArray(new Message[0]));
+    }
+
+    private Message buildStyledMessageWithLinks(String text, String color, boolean bold, boolean italic) {
+        if (text == null || text.isEmpty()) {
+            return Message.raw("");
+        }
+
+        List<UrlRange> urlRanges = extractUrlRanges(text);
+        if (urlRanges.isEmpty()) {
+            return createStyledPart(text, color, bold, italic, null);
+        }
+
+        List<Message> parts = new ArrayList<>();
+        int cursor = 0;
+        for (UrlRange urlRange : urlRanges) {
+            if (cursor < urlRange.start()) {
+                parts.add(createStyledPart(text.substring(cursor, urlRange.start()), color, bold, italic, null));
+            }
+            parts.add(createStyledPart(text.substring(urlRange.start(), urlRange.end()), color, bold, italic, urlRange.linkTarget()));
+            cursor = urlRange.end();
+        }
+        if (cursor < text.length()) {
+            parts.add(createStyledPart(text.substring(cursor), color, bold, italic, null));
+        }
+
+        if (parts.size() == 1) {
+            return parts.get(0);
+        }
+        return Message.join(parts.toArray(new Message[0]));
+    }
+
+    private Message createStyledPart(String text, String color, boolean bold, boolean italic, String linkTarget) {
+        Message part = Message.raw(text).color(color);
+        if (bold) {
+            part = part.bold(true);
+        }
+        if (italic) {
+            part = part.italic(true);
+        }
+        if (linkTarget != null) {
+            part = part.link(linkTarget);
+        }
+        return part;
+    }
+
+    private List<UrlRange> extractUrlRanges(String text) {
+        if (!config.isClickableUrlsEnabled() || text == null || text.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<UrlRange> ranges = new ArrayList<>();
+        Matcher matcher = URL_PATTERN.matcher(text);
+        while (matcher.find()) {
+            int start = matcher.start(1);
+            int end = matcher.end(1);
+
+            // Drop trailing punctuation so "example.com," links correctly without the comma.
+            while (end > start && URL_TRAILING_PUNCTUATION.indexOf(text.charAt(end - 1)) >= 0) {
+                end--;
+            }
+            if (end <= start) {
+                continue;
+            }
+
+            String rawUrl = text.substring(start, end);
+            String linkTarget = normalizeLinkTarget(rawUrl);
+            ranges.add(new UrlRange(start, end, linkTarget));
+        }
+
+        return ranges;
+    }
+
+    private String normalizeLinkTarget(String rawUrl) {
+        if (rawUrl.regionMatches(true, 0, "http://", 0, 7) ||
+            rawUrl.regionMatches(true, 0, "https://", 0, 8)) {
+            return rawUrl;
+        }
+        return "https://" + rawUrl;
+    }
+
+    private String[] buildLinkTargetIndex(List<UrlRange> ranges, int messageLength) {
+        if (ranges.isEmpty()) {
+            return null;
+        }
+        String[] index = new String[messageLength];
+        for (UrlRange range : ranges) {
+            for (int i = range.start(); i < range.end(); i++) {
+                index[i] = range.linkTarget();
+            }
+        }
+        return index;
     }
 
     public void sendPrivateMessage(PlayerRef sender, PlayerRef recipient, String message) {
@@ -851,7 +958,7 @@ public class ChatListener {
             Message.raw("[From ").color("#AAAAAA"),
             Message.raw(senderDisplayName).color(senderColor),
             Message.raw("] ").color("#AAAAAA"),
-            Message.raw(message).color("#FFFFFF")
+            buildStyledMessageWithLinks(message, "#FFFFFF", false, false)
         );
 
         // Message to sender: [To RecipientName] message
@@ -859,7 +966,7 @@ public class ChatListener {
             Message.raw("[To ").color("#AAAAAA"),
             Message.raw(recipientDisplayName).color(recipientColor),
             Message.raw("] ").color("#AAAAAA"),
-            Message.raw(message).color("#FFFFFF")
+            buildStyledMessageWithLinks(message, "#FFFFFF", false, false)
         );
 
         recipient.sendMessage(toRecipient);
@@ -870,5 +977,8 @@ public class ChatListener {
 
         // Log PM (use real usernames for logs)
         plugin.getLogger().at(Level.INFO).log("[PM] %s -> %s: %s", sender.getUsername(), recipient.getUsername(), message);
+    }
+
+    private record UrlRange(int start, int end, String linkTarget) {
     }
 }
