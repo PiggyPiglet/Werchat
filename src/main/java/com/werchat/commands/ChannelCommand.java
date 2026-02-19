@@ -1,17 +1,22 @@
 package com.werchat.commands;
 
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.permissions.PermissionsModule;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
 import com.werchat.storage.PlayerDataManager;
+import com.werchat.ui.ChannelSettingsPage;
 
 import javax.annotation.Nonnull;
 import java.util.UUID;
@@ -109,15 +114,16 @@ public class ChannelCommand extends CommandBase {
         String arg3 = parts.length > 4 ? parts[4] : null;
         String arg4 = parts.length > 5 ? parts[5] : null;
 
-        // No args = show help
+        // No args = open settings entry point
         if (cmd.isEmpty()) {
-            showHelp(ctx);
+            openSettings(ctx);
             return;
         }
 
         // Check for known subcommands first
         switch (cmd) {
             case "help", "?" -> { showHelp(ctx); return; }
+            case "settings" -> { openSettings(ctx); return; }
             case "reload" -> {
                 if (!hasWerchatPermission(ctx, "werchat.reload")) {
                     ctx.sendMessage(Message.raw("You don't have permission to reload Werchat").color("#FF5555"));
@@ -369,6 +375,14 @@ public class ChannelCommand extends CommandBase {
         ctx.sendMessage(Message.raw("  Werchat - Channel Chat").color("#55FF55").bold(true));
         ctx.sendMessage(Message.raw("").color("#000000"));
         ctx.sendMessage(Message.join(
+            Message.raw("  /ch").color("#FFFFFF"),
+            Message.raw("  Open settings").color("#AAAAAA")
+        ));
+        ctx.sendMessage(Message.join(
+            Message.raw("  /ch settings").color("#FFFFFF"),
+            Message.raw("  Open settings").color("#AAAAAA")
+        ));
+        ctx.sendMessage(Message.join(
             Message.raw("  /ch <name>").color("#FFFFFF"),
             Message.raw("  Switch channel").color("#AAAAAA")
         ));
@@ -484,6 +498,48 @@ public class ChannelCommand extends CommandBase {
             ));
         }
         ctx.sendMessage(Message.raw("").color("#000000"));
+    }
+
+    private void openSettings(CommandContext ctx) {
+        Ref<EntityStore> playerRef = ctx.senderAsPlayerRef();
+        if (playerRef == null) {
+            ctx.sendMessage(Message.raw("Player not found").color("#FF5555"));
+            return;
+        }
+
+        Store<EntityStore> store = playerRef.getStore();
+        if (store == null) {
+            ctx.sendMessage(Message.raw("Player state unavailable").color("#FF5555"));
+            return;
+        }
+
+        EntityStore entityStore = store.getExternalData();
+        World world = entityStore != null ? entityStore.getWorld() : null;
+        if (world == null) {
+            ctx.sendMessage(Message.raw("Player state unavailable").color("#FF5555"));
+            return;
+        }
+
+        world.execute(() -> {
+            try {
+                Player player = store.getComponent(playerRef, Player.getComponentType());
+                if (player == null) {
+                    ctx.sendMessage(Message.raw("Player state unavailable").color("#FF5555"));
+                    return;
+                }
+
+                PlayerRef pagePlayerRef = store.getComponent(playerRef, PlayerRef.getComponentType());
+                if (pagePlayerRef == null) {
+                    ctx.sendMessage(Message.raw("Player state unavailable").color("#FF5555"));
+                    return;
+                }
+
+                player.getPageManager().openCustomPage(playerRef, store, new ChannelSettingsPage(plugin, pagePlayerRef));
+            } catch (Exception e) {
+                plugin.getLogger().at(Level.WARNING).log("Failed to open Werchat settings UI: %s", e.getMessage());
+                ctx.sendMessage(Message.raw("Failed to open settings UI. Check server logs.").color("#FF5555"));
+            }
+        });
     }
 
     private void reloadData(CommandContext ctx) {

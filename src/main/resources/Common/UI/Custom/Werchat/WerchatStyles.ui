@@ -1,0 +1,65 @@
+$C = "../Common.ui";
+
+@ButtonLabel = LabelStyle(
+  FontSize: 13,
+  TextColor: #eaf2ff,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@ButtonLabelSmall = LabelStyle(
+  FontSize: 12,
+  TextColor: #eaf2ff,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@ButtonLabelDisabled = LabelStyle(
+  FontSize: 13,
+  TextColor: #8d9daf,
+  RenderBold: true,
+  HorizontalAlignment: Center,
+  VerticalAlignment: Center
+);
+
+@PrimaryButtonStyle = TextButtonStyle(
+  Default: (Background: (Color: #355f8e), LabelStyle: @ButtonLabel),
+  Hovered: (Background: (Color: #4275ad), LabelStyle: @ButtonLabel),
+  Pressed: (Background: (Color: #2a4b71), LabelStyle: @ButtonLabel),
+  Disabled: (Background: (Color: #1a2736), LabelStyle: @ButtonLabelDisabled),
+  Sounds: $C.@ButtonSounds
+);
+
+@SecondaryButtonStyle = TextButtonStyle(
+  Default: (Background: (Color: #1e3248), LabelStyle: @ButtonLabel),
+  Hovered: (Background: (Color: #294562), LabelStyle: @ButtonLabel),
+  Pressed: (Background: (Color: #17283a), LabelStyle: @ButtonLabel),
+  Disabled: (Background: (Color: #132030), LabelStyle: @ButtonLabelDisabled),
+  Sounds: $C.@ButtonSounds
+);
+
+@TabButtonStyle = TextButtonStyle(
+  Default: (Background: (Color: #253b55), LabelStyle: @ButtonLabel),
+  Hovered: (Background: (Color: #31506f), LabelStyle: @ButtonLabel),
+  Pressed: (Background: (Color: #1f3248), LabelStyle: @ButtonLabel),
+  Disabled: (Background: (Color: #172738), LabelStyle: @ButtonLabelDisabled),
+  Sounds: $C.@ButtonSounds
+);
+
+@TabButtonStyleSmall = TextButtonStyle(
+  Default: (Background: (Color: #24384f), LabelStyle: @ButtonLabelSmall),
+  Hovered: (Background: (Color: #2d4a67), LabelStyle: @ButtonLabelSmall),
+  Pressed: (Background: (Color: #1d2f43), LabelStyle: @ButtonLabelSmall),
+  Disabled: (Background: (Color: #162436), LabelStyle: @ButtonLabelDisabled),
+  Sounds: $C.@ButtonSounds
+);
+
+@DangerButtonStyle = TextButtonStyle(
+  Default: (Background: (Color: #7f3a47), LabelStyle: @ButtonLabel),
+  Hovered: (Background: (Color: #9b4a59), LabelStyle: @ButtonLabel),
+  Pressed: (Background: (Color: #5f2c36), LabelStyle: @ButtonLabel),
+  Disabled: (Background: (Color: #3b2027), LabelStyle: @ButtonLabelDisabled),
+  Sounds: $C.@ButtonSounds
+);

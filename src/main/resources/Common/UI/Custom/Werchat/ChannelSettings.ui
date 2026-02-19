@@ -1,0 +1,808 @@
+$C = "../Common.ui";
+$W = "WerchatStyles.ui";
+
+$C.@DecoratedContainer {
+  Anchor: (Width: 940, Height: 690);
+
+  #Title {
+    Group #Header {
+      Anchor: (Height: 74, Left: 0, Right: 0);
+      LayoutMode: Left;
+      Padding: (Left: 14, Right: 14, Top: 10, Bottom: 10);
+
+      Group {
+        LayoutMode: Top;
+        FlexWeight: 1;
+
+        $C.@Title {
+          @Text = "Werchat Settings";
+        }
+
+        Label {
+          Text: "Unified channel, profile, and moderator controls";
+          Style: (TextColor: #9eb3cc, FontSize: 13);
+        }
+      }
+
+      Group {
+        Anchor: (Width: 10);
+      }
+
+      TextButton #CloseButton {
+        Text: "Close";
+        Anchor: (Width: 110, Height: 34);
+        Style: $W.@SecondaryButtonStyle;
+      }
+    }
+  }
+
+  #Content {
+    Group {
+      Anchor: (Left: 0, Right: 0, Top: 0, Bottom: 0);
+      LayoutMode: Top;
+      Background: (Color: #0b1420);
+
+      Group #TopTabs {
+        Anchor: (Height: 54, Left: 0, Right: 0);
+        LayoutMode: Left;
+        Padding: (Left: 12, Right: 12, Top: 10, Bottom: 10);
+        Background: (Color: #0f1f33);
+
+        TextButton #TabMainButton {
+          Text: "Main";
+          Anchor: (Width: 132, Height: 34);
+          Style: $W.@TabButtonStyle;
+        }
+        Group { Anchor: (Width: 6); }
+
+        TextButton #TabChannelsButton {
+          Text: "Channels";
+          Anchor: (Width: 132, Height: 34);
+          Style: $W.@TabButtonStyle;
+        }
+
+        Group {
+          FlexWeight: 1;
+        }
+
+        TextButton #RefreshButton {
+          Text: "Refresh";
+          Anchor: (Width: 116, Height: 34);
+          Style: $W.@SecondaryButtonStyle;
+        }
+      }
+
+      Group #ModeratorTabsSection {
+        Anchor: (Height: 46, Left: 0, Right: 0);
+        LayoutMode: Left;
+        Padding: (Left: 12, Right: 12, Top: 8, Bottom: 8);
+        Background: (Color: #0e1929);
+
+        Label #ModeratorTabsLabel {
+          Text: "Moderator Tabs";
+          Style: (TextColor: #8ea5c0, FontSize: 13);
+          Anchor: (Width: 126, Height: 28);
+        }
+
+        Group #ModeratorTabs {
+          LayoutMode: Left;
+          Anchor: (Height: 30);
+          Visible: true;
+        }
+
+        Label #ModeratorTabsEmptyLabel {
+          Text: "No moderated channels.";
+          Style: (TextColor: #7389a3, FontSize: 12);
+          Anchor: (Height: 28);
+          Visible: false;
+        }
+      }
+
+      Group #Body {
+        FlexWeight: 1;
+        Anchor: (Left: 0, Right: 0);
+        Padding: (Left: 14, Right: 14, Top: 12, Bottom: 12);
+        Background: (Color: #0b1420);
+
+        Group #MainPanel {
+          Anchor: (Left: 0, Right: 0, Top: 0, Bottom: 0);
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@DefaultExtraSpacingScrollbarStyle;
+          Padding: (Right: 8);
+          Visible: true;
+
+          Label {
+            Text: "Profile and Session";
+            Style: (FontSize: 20, TextColor: #ffffff, RenderBold: true);
+          }
+
+          Label {
+            Text: "Swap your focused channel and personalize nickname/message styling.";
+            Style: (TextColor: #9eb3cc, FontSize: 13);
+            Padding: (Top: 2, Bottom: 8);
+          }
+
+          $C.@SimpleContainer {
+            Anchor: (Height: 730);
+            Padding: (Full: 14);
+
+            Group {
+              LayoutMode: Top;
+
+              Label {
+                Text: "Display Name";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+
+              Group #MainDisplayNamePreview {
+                LayoutMode: Left;
+                Anchor: (Height: 30, Left: 0, Right: 0);
+                Padding: (Bottom: 8);
+
+                Label #MainDisplayNameStartValue {
+                  Text: "-";
+                  Style: (TextColor: #ffffff, FontSize: 18, RenderBold: true);
+                }
+
+                Label #MainDisplayNameEndValue {
+                  Text: "";
+                  Style: (TextColor: #ffffff, FontSize: 18, RenderBold: true);
+                }
+              }
+
+              Label {
+                Text: "Focused Channel";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #MainFocusedChannelValue {
+                Text: "-";
+                Style: (TextColor: #ffffff, FontSize: 16);
+                Padding: (Bottom: 8);
+              }
+
+              Group {
+                LayoutMode: Left;
+                Anchor: (Height: 44, Left: 0, Right: 0);
+                Padding: (Bottom: 8);
+
+                $C.@DropdownBox #MainFocusDropdown {
+                  @Anchor = (Width: 260);
+                  Value: "Global";
+                }
+                Group { Anchor: (Width: 8); }
+
+                TextButton #MainSetFocusButton {
+                  Text: "Set Focus";
+                  Anchor: (Width: 120, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+              }
+
+              Group #MainFocusInfo {
+                Anchor: (Height: 128, Left: 0, Right: 0);
+                LayoutMode: Top;
+                Padding: (Bottom: 8);
+
+                Label {
+                  Text: "Your Channels";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                }
+                Label #MainJoinedChannelsValue {
+                  Text: "-";
+                  Style: (TextColor: #d8e3f0, FontSize: 13);
+                }
+
+                Label {
+                  Text: "Channel Strip";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                  Padding: (Top: 2);
+                }
+                Label #MainRecentChannelsValue {
+                  Text: "-";
+                  Style: (TextColor: #9eb3cc, FontSize: 12);
+                  Padding: (Bottom: 6);
+                }
+
+                Group {
+                  LayoutMode: Left;
+                  Anchor: (Height: 34, Left: 0, Right: 0);
+
+                  TextButton #MainQuickJoinButton {
+                    Text: "Join Selected";
+                    Anchor: (Width: 140, Height: 32);
+                    Style: $W.@PrimaryButtonStyle;
+                    TooltipText: "Quick join for channels without passwords";
+                  }
+                  Group { Anchor: (Width: 8); }
+
+                  TextButton #MainQuickLeaveButton {
+                    Text: "Leave Selected";
+                    Anchor: (Width: 144, Height: 32);
+                    Style: $W.@SecondaryButtonStyle;
+                  }
+                  Group { Anchor: (Width: 8); }
+
+                  TextButton #MainQuickChannelsButton {
+                    Text: "Open Channels";
+                    Anchor: (Width: 142, Height: 32);
+                    Style: $W.@SecondaryButtonStyle;
+                  }
+                }
+
+                Label {
+                  Text: "Password channels still require /ch join <channel> <password>.";
+                  Style: (TextColor: #7389a3, FontSize: 12);
+                }
+              }
+
+              Label {
+                Text: "Joined Channels";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #MainJoinedCountValue {
+                Text: "0";
+                Style: (TextColor: #ffffff, FontSize: 16);
+                Padding: (Bottom: 10);
+              }
+
+              Group {
+                Anchor: (Height: 1, Left: 0, Right: 0);
+                Background: (Color: #2b3f58);
+              }
+
+              Label {
+                Text: "Nickname";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+                Padding: (Top: 10);
+              }
+              Label #MainNicknameValue {
+                Text: "Not set";
+                Style: (TextColor: #ffffff, FontSize: 16);
+                Padding: (Bottom: 8);
+              }
+
+              Group {
+                LayoutMode: Left;
+                Anchor: (Height: 44, Left: 0, Right: 0);
+                Padding: (Bottom: 8);
+
+                $C.@TextField #MainNickInput {
+                  @Anchor = (Width: 260, Height: 32);
+                  PlaceholderText: "Set nickname";
+                }
+                Group { Anchor: (Width: 8); }
+
+                TextButton #MainSetNickButton {
+                  Text: "Save Nickname";
+                  Anchor: (Width: 142, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+                Group { Anchor: (Width: 8); }
+
+                TextButton #MainClearNickButton {
+                  Text: "Reset Nickname";
+                  Anchor: (Width: 150, Height: 34);
+                  Style: $W.@SecondaryButtonStyle;
+                }
+              }
+
+              Label {
+                Text: "Nickname Color";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #MainNickColorValue {
+                Text: "Default";
+                Style: (TextColor: #ffffff, FontSize: 16);
+                Padding: (Bottom: 8);
+              }
+
+              Group {
+                LayoutMode: Left;
+                Anchor: (Height: 44, Left: 0, Right: 0);
+                Padding: (Bottom: 8);
+
+                Label {
+                  Text: "Start";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                  Anchor: (Width: 42, Height: 32);
+                }
+                ColorPickerDropdownBox #MainNickStartColorPicker {
+                  Anchor: (Width: 34, Height: 32);
+                  Style: $C.@DefaultColorPickerDropdownBoxStyle;
+                  Color: #ffffff;
+                }
+                Group { Anchor: (Width: 10); }
+                Label {
+                  Text: "End";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                  Anchor: (Width: 34, Height: 32);
+                }
+                ColorPickerDropdownBox #MainNickEndColorPicker {
+                  Anchor: (Width: 34, Height: 32);
+                  Style: $C.@DefaultColorPickerDropdownBoxStyle;
+                  Color: #ffffff;
+                }
+                Group { Anchor: (Width: 10); }
+                TextButton #MainApplyNickColorButton {
+                  Text: "Apply Solid";
+                  Anchor: (Width: 114, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+                Group { Anchor: (Width: 8); }
+                TextButton #MainApplyNickGradientButton {
+                  Text: "Apply Gradient";
+                  Anchor: (Width: 132, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+                Group { Anchor: (Width: 8); }
+                TextButton #MainClearNickColorButton {
+                  Text: "Reset";
+                  Anchor: (Width: 84, Height: 34);
+                  Style: $W.@SecondaryButtonStyle;
+                }
+              }
+
+              Label {
+                Text: "Message Color";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #MainMsgColorValue {
+                Text: "Default";
+                Style: (TextColor: #ffffff, FontSize: 16);
+                Padding: (Bottom: 8);
+              }
+
+              Label {
+                Text: "Message Preview";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #MainMsgPreviewValue {
+                Text: "Preview message";
+                Style: (TextColor: #ffffff, FontSize: 16, RenderBold: true);
+                Padding: (Bottom: 8);
+              }
+
+              Group {
+                LayoutMode: Left;
+                Anchor: (Height: 44, Left: 0, Right: 0);
+                Padding: (Bottom: 8);
+
+                Label {
+                  Text: "Start";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                  Anchor: (Width: 42, Height: 32);
+                }
+                ColorPickerDropdownBox #MainMsgStartColorPicker {
+                  Anchor: (Width: 34, Height: 32);
+                  Style: $C.@DefaultColorPickerDropdownBoxStyle;
+                  Color: #ffffff;
+                }
+                Group { Anchor: (Width: 10); }
+                Label {
+                  Text: "End";
+                  Style: (TextColor: #8ea5c0, FontSize: 12);
+                  Anchor: (Width: 34, Height: 32);
+                }
+                ColorPickerDropdownBox #MainMsgEndColorPicker {
+                  Anchor: (Width: 34, Height: 32);
+                  Style: $C.@DefaultColorPickerDropdownBoxStyle;
+                  Color: #ffffff;
+                }
+                Group { Anchor: (Width: 10); }
+                TextButton #MainApplyMsgColorButton {
+                  Text: "Apply Solid";
+                  Anchor: (Width: 114, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+                Group { Anchor: (Width: 8); }
+                TextButton #MainApplyMsgGradientButton {
+                  Text: "Apply Gradient";
+                  Anchor: (Width: 132, Height: 34);
+                  Style: $W.@PrimaryButtonStyle;
+                }
+                Group { Anchor: (Width: 8); }
+                TextButton #MainClearMsgColorButton {
+                  Text: "Reset";
+                  Anchor: (Width: 84, Height: 34);
+                  Style: $W.@SecondaryButtonStyle;
+                }
+              }
+            }
+          }
+        }
+
+        Group #ChannelsPanel {
+          Anchor: (Left: 0, Right: 0, Top: 0, Bottom: 0);
+          LayoutMode: Top;
+          Visible: true;
+
+          Label {
+            Text: "Channels";
+            Style: (FontSize: 20, TextColor: #ffffff, RenderBold: true);
+          }
+          Label {
+            Text: "Join, leave, or focus channels quickly.";
+            Style: (TextColor: #9eb3cc, FontSize: 13);
+            Padding: (Top: 2, Bottom: 8);
+          }
+
+          Group {
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            LayoutMode: Left;
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Join password:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 110, Height: 32);
+            }
+
+            $C.@TextField #JoinPasswordInput {
+              @Anchor = (Width: 250, Height: 32);
+              PlaceholderText: "Only used for locked channels";
+            }
+          }
+
+          Group {
+            Anchor: (Height: 1, Left: 0, Right: 0);
+            Background: (Color: #2b3f58);
+          }
+
+          Group #ChannelRowsWrap {
+            FlexWeight: 1;
+            Anchor: (Left: 0, Right: 0);
+            LayoutMode: TopScrolling;
+            ScrollbarStyle: $C.@DefaultExtraSpacingScrollbarStyle;
+            Padding: (Top: 8, Right: 8);
+
+            Group #ChannelRows {
+              LayoutMode: Top;
+              Anchor: (Left: 0, Right: 0);
+            }
+
+            Label #ChannelsEmptyLabel {
+              Text: "No channels available.";
+              Style: (TextColor: #8ea5c0, FontSize: 13);
+              Padding: (Top: 8);
+              Visible: false;
+            }
+          }
+        }
+
+        Group #ModeratorPanel {
+          Anchor: (Left: 0, Right: 0, Top: 0, Bottom: 0);
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@DefaultExtraSpacingScrollbarStyle;
+          Padding: (Right: 10);
+          Visible: false;
+
+          Label {
+            Text: "Moderator Control";
+            Style: (FontSize: 20, TextColor: #ffffff, RenderBold: true);
+          }
+          Label {
+            Text: "User moderation and channel settings for the selected moderator tab.";
+            Style: (TextColor: #9eb3cc, FontSize: 13);
+            Padding: (Top: 2, Bottom: 8);
+          }
+
+          $C.@SimpleContainer {
+            Anchor: (Height: 210);
+            Padding: (Full: 14);
+
+            Group {
+              LayoutMode: Top;
+
+              Label {
+                Text: "Managed Channel";
+                Style: (TextColor: #8ea5c0, FontSize: 12);
+              }
+              Label #ModeratorChannelNameValue {
+                Text: "-";
+                Style: (TextColor: #ffffff, FontSize: 18, RenderBold: true);
+                Padding: (Bottom: 8);
+              }
+
+              Label #ModeratorMemberCountValue {
+                Text: "Members: 0";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorMutedCountValue {
+                Text: "Muted: 0";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorBannedCountValue {
+                Text: "Banned: 0";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorModeratorsCountValue {
+                Text: "Moderators: 0";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorDistanceValue {
+                Text: "Distance: Global";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorPasswordValue {
+                Text: "Password: None";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorTagColorValue {
+                Text: "Tag Color: #ffffff";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+              Label #ModeratorTextColorValue {
+                Text: "Text Color: Default";
+                Style: (TextColor: #d8e3f0, FontSize: 13);
+              }
+            }
+          }
+
+          Group {
+            Anchor: (Height: 1, Left: 0, Right: 0);
+            Background: (Color: #2b3f58);
+            Padding: (Top: 8, Bottom: 8);
+          }
+
+          Label {
+            Text: "User Actions";
+            Style: (TextColor: #ffffff, FontSize: 16, RenderBold: true);
+            Padding: (Top: 8, Bottom: 4);
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Target:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 60, Height: 32);
+            }
+
+            $C.@TextField #ModTargetInput {
+              @Anchor = (Width: 220, Height: 32);
+              PlaceholderText: "Player name";
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 6);
+
+            TextButton #ModBanButton {
+              Text: "Ban";
+              Anchor: (Width: 96, Height: 34);
+              Style: $W.@DangerButtonStyle;
+            }
+            Group { Anchor: (Width: 6); }
+
+            TextButton #ModUnbanButton {
+              Text: "Unban";
+              Anchor: (Width: 96, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+            Group { Anchor: (Width: 6); }
+
+            TextButton #ModMuteButton {
+              Text: "Mute";
+              Anchor: (Width: 96, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+            Group { Anchor: (Width: 6); }
+
+            TextButton #ModUnmuteButton {
+              Text: "Unmute";
+              Anchor: (Width: 96, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            TextButton #ModAddModeratorButton {
+              Text: "Add Moderator";
+              Anchor: (Width: 136, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+            Group { Anchor: (Width: 8); }
+
+            TextButton #ModRemoveModeratorButton {
+              Text: "Remove Moderator";
+              Anchor: (Width: 156, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+          }
+
+          Group {
+            Anchor: (Height: 1, Left: 0, Right: 0);
+            Background: (Color: #2b3f58);
+            Padding: (Top: 8, Bottom: 8);
+          }
+
+          Label {
+            Text: "Channel Settings";
+            Style: (TextColor: #ffffff, FontSize: 16, RenderBold: true);
+            Padding: (Top: 8, Bottom: 4);
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Nick:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 60, Height: 32);
+            }
+            $C.@TextField #ModNickInput {
+              @Anchor = (Width: 220, Height: 32);
+              PlaceholderText: "Channel nick";
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetNickButton {
+              Text: "Set Nick";
+              Anchor: (Width: 122, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Distance:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 60, Height: 32);
+            }
+
+            $C.@DropdownBox #ModDistanceDropdown {
+              @Anchor = (Width: 220, Height: 32);
+              Value: "100";
+
+              DropdownEntry { Value: "0"; Text: "Global (0)"; }
+              DropdownEntry { Value: "25"; Text: "25 blocks"; }
+              DropdownEntry { Value: "50"; Text: "50 blocks"; }
+              DropdownEntry { Value: "100"; Text: "100 blocks"; }
+              DropdownEntry { Value: "150"; Text: "150 blocks"; }
+              DropdownEntry { Value: "250"; Text: "250 blocks"; }
+              DropdownEntry { Value: "500"; Text: "500 blocks"; }
+              DropdownEntry { Value: "custom"; Text: "Custom (use field below)"; }
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetDistanceButton {
+              Text: "Set Preset";
+              Anchor: (Width: 124, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Password:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 60, Height: 32);
+            }
+            $C.@TextField #ModPasswordInput {
+              @Anchor = (Width: 220, Height: 32);
+              PlaceholderText: "Leave blank to keep";
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetPasswordButton {
+              Text: "Set Password";
+              Anchor: (Width: 136, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModClearPasswordButton {
+              Text: "Clear Password";
+              Anchor: (Width: 136, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Tag:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 44, Height: 32);
+            }
+            ColorPickerDropdownBox #ModTagColorPicker {
+              Anchor: (Width: 34, Height: 32);
+              Style: $C.@DefaultColorPickerDropdownBoxStyle;
+              Color: #ffffff;
+              TooltipText: "Pick the channel tag color";
+              TextTooltipStyle: $C.@DefaultTextTooltipStyle;
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetTagColorButton {
+              Text: "Apply Tag";
+              Anchor: (Width: 120, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Text:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 44, Height: 32);
+            }
+            ColorPickerDropdownBox #ModTextColorPicker {
+              Anchor: (Width: 34, Height: 32);
+              Style: $C.@DefaultColorPickerDropdownBoxStyle;
+              Color: #ffffff;
+              TooltipText: "Pick the channel text color";
+              TextTooltipStyle: $C.@DefaultTextTooltipStyle;
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetTextColorButton {
+              Text: "Apply Text";
+              Anchor: (Width: 120, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModClearTextColorButton {
+              Text: "Reset Text";
+              Anchor: (Width: 116, Height: 34);
+              Style: $W.@SecondaryButtonStyle;
+            }
+          }
+
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 44, Left: 0, Right: 0);
+            Padding: (Bottom: 8);
+
+            Label {
+              Text: "Custom Distance:";
+              Style: (TextColor: #8ea5c0, FontSize: 12);
+              Anchor: (Width: 100, Height: 32);
+            }
+            $C.@TextField #ModDistanceInput {
+              @Anchor = (Width: 104, Height: 32);
+              PlaceholderText: "0 = global";
+            }
+            Group { Anchor: (Width: 8); }
+            TextButton #ModSetCustomDistanceButton {
+              Text: "Set Custom";
+              Anchor: (Width: 128, Height: 34);
+              Style: $W.@PrimaryButtonStyle;
+            }
+          }
+        }
+      }
+
+      Group {
+        Anchor: (Height: 28, Left: 0, Right: 0);
+        Background: (Color: #0e1929);
+        Padding: (Left: 14, Right: 14, Top: 6, Bottom: 6);
+
+        Label #FooterMessage {
+          Text: "Ready.";
+          Style: (TextColor: #8fa8c3, FontSize: 12);
+        }
+      }
+    }
+  }
+}
