@@ -108,7 +108,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         validateActiveTab(moderatorChannels);
 
         applyTabState(cmd);
-        renderModeratorTabs(cmd, events, moderatorChannels);
+        renderModeratorTabs(cmd, moderatorChannels);
         renderMainPanel(cmd, viewerId);
         renderChannels(cmd, events, viewerId);
         renderJoinPasswordModal(cmd);
@@ -216,7 +216,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         validateActiveTab(moderatorChannels);
 
         applyTabState(cmd);
-        renderModeratorTabs(cmd, events, moderatorChannels);
+        renderModeratorTabs(cmd, moderatorChannels);
         renderMainPanel(cmd, viewerId);
         renderChannels(cmd, events, viewerId);
         renderJoinPasswordModal(cmd);
@@ -234,6 +234,8 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             EventData.of("Button", "Tab").append("Tab", TAB_MAIN), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TabChannelsButton",
             EventData.of("Button", "Tab").append("Tab", TAB_CHANNELS), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModeratorTabsOpenButton",
+            EventData.of("Button", "ModTab").append("Channel", "#ModeratorTabsDropdown.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#JoinPasswordModalConfirmButton",
             EventData.of("Button", "JoinPasswordConfirm")
                 .append("@Password", "#JoinPasswordModalInput.Value"), false);
@@ -344,47 +346,56 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         cmd.set("#TabChannelsButton.Text", channels ? "[Channels]" : "Channels");
     }
 
-    private void renderModeratorTabs(UICommandBuilder cmd, UIEventBuilder events, List<Channel> moderatorChannels) {
-        cmd.clear("#ModeratorTabs");
-        for (int i = 0; i < moderatorChannels.size(); i++) {
-            Channel channel = moderatorChannels.get(i);
-            cmd.append("#ModeratorTabs", "Werchat/ModeratorTabButton.ui");
+    private void renderModeratorTabs(UICommandBuilder cmd, List<Channel> moderatorChannels) {
+        List<DropdownEntryInfo> entries = new ArrayList<>();
+        String activeModeratorName = activeTab.startsWith(TAB_MOD_PREFIX)
+            ? activeTab.substring(TAB_MOD_PREFIX.length())
+            : null;
+        String selectedValue = null;
 
-            String selector = "#ModeratorTabs[" + i + "] #ModeratorTabButton";
-            String shortName = getModeratorTabShortName(channel);
-            String label = activeTab.equals(TAB_MOD_PREFIX + channel.getName().toLowerCase(Locale.ROOT))
-                ? "[" + shortName + "]"
-                : shortName;
-            cmd.set(selector + ".Text", label);
-            cmd.set(selector + ".TooltipText", "Manage " + channel.getName());
-
-            events.addEventBinding(
-                CustomUIEventBindingType.Activating,
-                selector,
-                EventData.of("Button", "ModTab").append("Channel", channel.getName()),
-                false
-            );
+        for (Channel channel : moderatorChannels) {
+            entries.add(new DropdownEntryInfo(
+                LocalizableString.fromString(buildModeratorDropdownLabel(channel)),
+                channel.getName()
+            ));
+            if (activeModeratorName != null && channel.getName().equalsIgnoreCase(activeModeratorName)) {
+                selectedValue = channel.getName();
+            }
         }
 
-        cmd.set("#ModeratorTabsLabel.Text", "Moderator Tabs (" + moderatorChannels.size() + ")");
-        cmd.set("#ModeratorTabs.Visible", !moderatorChannels.isEmpty());
-        cmd.set("#ModeratorTabsEmptyLabel.Visible", moderatorChannels.isEmpty());
+        boolean hasModeratorChannels = !moderatorChannels.isEmpty();
+        cmd.set("#ModeratorTabsLabel.Text", "Moderator Channels (" + moderatorChannels.size() + ")");
+        cmd.set("#ModeratorTabsDropdown.Visible", hasModeratorChannels);
+        cmd.set("#ModeratorTabsOpenButton.Visible", hasModeratorChannels);
+        cmd.set("#ModeratorTabsEmptyLabel.Visible", !hasModeratorChannels);
+
+        if (!hasModeratorChannels) {
+            cmd.set("#ModeratorTabsDropdown.Disabled", true);
+            cmd.set("#ModeratorTabsOpenButton.Disabled", true);
+            cmd.set("#ModeratorTabsDropdown.Entries", List.of(
+                new DropdownEntryInfo(LocalizableString.fromString("No moderated channels"), "")
+            ));
+            cmd.set("#ModeratorTabsDropdown.Value", "");
+            return;
+        }
+
+        if (selectedValue == null) {
+            selectedValue = moderatorChannels.get(0).getName();
+        }
+
+        cmd.set("#ModeratorTabsDropdown.Entries", entries);
+        cmd.set("#ModeratorTabsDropdown.Value", selectedValue);
+        cmd.set("#ModeratorTabsDropdown.Disabled", false);
+        cmd.set("#ModeratorTabsOpenButton.Disabled", false);
     }
 
-    private String getModeratorTabShortName(Channel channel) {
-        String value = channel.getNick();
-        if (value == null || value.isBlank()) {
-            value = channel.getName();
+    private String buildModeratorDropdownLabel(Channel channel) {
+        String name = channel.getName();
+        String nick = channel.getNick();
+        if (nick == null || nick.isBlank() || nick.equalsIgnoreCase(name)) {
+            return name;
         }
-
-        String cleaned = value.replace("[", "").replace("]", "").trim();
-        if (cleaned.isEmpty()) {
-            cleaned = channel.getName();
-        }
-        if (cleaned.length() > 7) {
-            return cleaned.substring(0, 6) + "~";
-        }
-        return cleaned;
+        return name + " [" + nick + "]";
     }
 
     private void renderMainPanel(UICommandBuilder cmd, UUID viewerId) {

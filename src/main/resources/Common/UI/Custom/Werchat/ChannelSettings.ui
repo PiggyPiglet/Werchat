@@ -97,16 +97,29 @@ $C.@DecoratedContainer {
               Anchor: (Width: 8);
             }
 
-            Group #ModeratorTabs {
-              LayoutMode: Left;
-              Anchor: (Height: 30);
-              Visible: true;
+            $C.@DropdownBox #ModeratorTabsDropdown {
+              @Anchor = (Width: 240);
+              Value: "";
+            }
+
+            Group {
+              Anchor: (Width: 8);
+            }
+
+            TextButton #ModeratorTabsOpenButton {
+              Text: "Open";
+              Anchor: (Width: 84, Height: 30);
+              Style: $W.@SecondaryButtonStyle;
+            }
+
+            Group {
+              Anchor: (Width: 8);
             }
 
             Label #ModeratorTabsEmptyLabel {
               Text: "No moderated channels.";
               Style: (TextColor: #7389a3, FontSize: 12, HorizontalAlignment: Start, VerticalAlignment: Center);
-              Anchor: (Height: 30);
+              Anchor: (Width: 220, Height: 30);
               Visible: false;
             }
           }
