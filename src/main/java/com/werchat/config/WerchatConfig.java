@@ -19,6 +19,8 @@ public class WerchatConfig {
     private boolean showJoinLeaveMessages = true;
     private boolean allowPrivateMessages = true;
     private boolean enforceChannelPermissions = false;
+    private boolean channelDescriptionsEnabled = true;
+    private boolean channelMotdSystemEnabled = true;
 
     // Moderation messages
     private String banMessage = "You have been banned from {channel}";
@@ -77,6 +79,18 @@ public class WerchatConfig {
                     JsonObject cp = root.getAsJsonObject("channelPermissions");
                     if (cp.has("enforce")) {
                         enforceChannelPermissions = cp.get("enforce").getAsBoolean();
+                    }
+                }
+                if (root.has("channelDescriptions")) {
+                    JsonObject cd = root.getAsJsonObject("channelDescriptions");
+                    if (cd.has("enabled")) {
+                        channelDescriptionsEnabled = cd.get("enabled").getAsBoolean();
+                    }
+                }
+                if (root.has("channelMotd")) {
+                    JsonObject cm = root.getAsJsonObject("channelMotd");
+                    if (cm.has("enabled")) {
+                        channelMotdSystemEnabled = cm.get("enabled").getAsBoolean();
                     }
                 }
 
@@ -150,6 +164,12 @@ public class WerchatConfig {
             JsonObject channelPermissions = new JsonObject();
             channelPermissions.addProperty("enforce", enforceChannelPermissions);
             root.add("channelPermissions", channelPermissions);
+            JsonObject channelDescriptions = new JsonObject();
+            channelDescriptions.addProperty("enabled", channelDescriptionsEnabled);
+            root.add("channelDescriptions", channelDescriptions);
+            JsonObject channelMotd = new JsonObject();
+            channelMotd.addProperty("enabled", channelMotdSystemEnabled);
+            root.add("channelMotd", channelMotd);
 
             // Moderation messages
             root.addProperty("banMessage", banMessage);
@@ -204,6 +224,8 @@ public class WerchatConfig {
     public boolean isShowJoinLeaveMessages() { return showJoinLeaveMessages; }
     public boolean isAllowPrivateMessages() { return allowPrivateMessages; }
     public boolean isEnforceChannelPermissions() { return enforceChannelPermissions; }
+    public boolean isChannelDescriptionsEnabled() { return channelDescriptionsEnabled; }
+    public boolean isChannelMotdSystemEnabled() { return channelMotdSystemEnabled; }
 
     public String getBanMessage() { return banMessage; }
     public String getMuteMessage() { return muteMessage; }

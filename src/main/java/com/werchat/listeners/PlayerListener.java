@@ -44,6 +44,7 @@ public class PlayerListener {
 
         // Track online player
         playerDataManager.trackPlayer(playerId, player);
+        channelManager.resetMotdSession(playerId);
 
         // Ensure Werchat PlaceholderAPI expansion is registered early so
         // /papi parse works before first chat message is sent.
@@ -103,6 +104,7 @@ public class PlayerListener {
         }
 
         // Don't remove from channels - persist membership across sessions
+        channelManager.resetMotdSession(playerId);
         playerDataManager.untrackPlayer(playerId);
         playerDataManager.clearTransientData(playerId);
     }

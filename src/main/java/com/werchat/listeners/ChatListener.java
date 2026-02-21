@@ -371,7 +371,7 @@ public class ChatListener {
             if (now - lastTime < cooldownMs) {
                 int remaining = (int) Math.ceil((cooldownMs - (now - lastTime)) / 1000.0);
                 String msg = config.getCooldownMessage().replace("{seconds}", String.valueOf(remaining));
-                sender.sendMessage(Message.raw(msg).color("#FF5555"));
+                sender.sendMessage(Message.raw(applyPapi(sender, sender, msg)).color("#FF5555"));
                 return;
             }
         }
@@ -383,14 +383,14 @@ public class ChatListener {
                 if (config.getFilterMode().equals("block")) {
                     // Block entire message
                     if (config.isFilterNotifyPlayer()) {
-                        sender.sendMessage(Message.raw(config.getFilterWarningMessage()).color("#FF5555"));
+                        sender.sendMessage(Message.raw(applyPapi(sender, sender, config.getFilterWarningMessage())).color("#FF5555"));
                     }
                     return;
                 } else {
                     // Censor mode - replace bad words
                     message = filterResult.filteredMessage;
                     if (config.isFilterNotifyPlayer()) {
-                        sender.sendMessage(Message.raw(config.getFilterWarningMessage()).color("#FFAA00"));
+                        sender.sendMessage(Message.raw(applyPapi(sender, sender, config.getFilterWarningMessage())).color("#FFAA00"));
                     }
                 }
             }
@@ -931,13 +931,13 @@ public class ChatListener {
             if (filterResult.containsBadWords) {
                 if (config.getFilterMode().equals("block")) {
                     if (config.isFilterNotifyPlayer()) {
-                        sender.sendMessage(Message.raw(config.getFilterWarningMessage()).color("#FF5555"));
+                        sender.sendMessage(Message.raw(applyPapi(sender, sender, config.getFilterWarningMessage())).color("#FF5555"));
                     }
                     return;
                 } else {
                     message = filterResult.filteredMessage;
                     if (config.isFilterNotifyPlayer()) {
-                        sender.sendMessage(Message.raw(config.getFilterWarningMessage()).color("#FFAA00"));
+                        sender.sendMessage(Message.raw(applyPapi(sender, sender, config.getFilterWarningMessage())).color("#FFAA00"));
                     }
                 }
             }

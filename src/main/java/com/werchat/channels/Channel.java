@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Represents a chat channel
@@ -23,6 +24,10 @@ public class Channel {
     private boolean focusable;
     private boolean verbose;
     private boolean autoJoin;
+    private String description;
+    private boolean descriptionEnabled;
+    private String motd;
+    private boolean motdEnabled;
 
     private final Set<UUID> members;
     private final Set<UUID> banned;
@@ -50,13 +55,17 @@ public class Channel {
         this.focusable = true;
         this.verbose = true;
         this.autoJoin = false;
+        this.description = "";
+        this.descriptionEnabled = true;
+        this.motd = "";
+        this.motdEnabled = false;
 
-        this.members = new HashSet<>();
-        this.banned = new HashSet<>();
-        this.muted = new HashSet<>();
-        this.moderators = new HashSet<>();
+        this.members = ConcurrentHashMap.newKeySet();
+        this.banned = ConcurrentHashMap.newKeySet();
+        this.muted = ConcurrentHashMap.newKeySet();
+        this.moderators = ConcurrentHashMap.newKeySet();
 
-        this.worlds = new HashSet<>();
+        this.worlds = ConcurrentHashMap.newKeySet();
 
         refreshPermissionNodes();
     }
@@ -249,6 +258,68 @@ public class Channel {
         }
 
         this.autoJoin = autoJoin;
+        notifyChanged();
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        String normalized = description == null ? "" : description.trim();
+        if (Objects.equals(this.description, normalized)) {
+            return;
+        }
+
+        this.description = normalized;
+        notifyChanged();
+    }
+
+    public boolean hasDescription() {
+        return description != null && !description.isBlank();
+    }
+
+    public boolean isDescriptionEnabled() {
+        return descriptionEnabled;
+    }
+
+    public void setDescriptionEnabled(boolean descriptionEnabled) {
+        if (this.descriptionEnabled == descriptionEnabled) {
+            return;
+        }
+
+        this.descriptionEnabled = descriptionEnabled;
+        notifyChanged();
+    }
+
+    public String getMotd() {
+        return motd;
+    }
+
+    public void setMotd(String motd) {
+        String normalized = motd == null ? "" : motd.trim();
+        if (Objects.equals(this.motd, normalized)) {
+            return;
+        }
+
+        this.motd = normalized;
+        notifyChanged();
+    }
+
+    public boolean hasMotd() {
+        return motd != null && !motd.isBlank();
+    }
+
+    public boolean isMotdEnabled() {
+        return motdEnabled;
+    }
+
+    public void setMotdEnabled(boolean motdEnabled) {
+        if (this.motdEnabled == motdEnabled) {
+            return;
+        }
+
+        this.motdEnabled = motdEnabled;
         notifyChanged();
     }
 

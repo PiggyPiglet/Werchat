@@ -15,10 +15,14 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
+import com.werchat.integration.papi.PAPIIntegration;
 import com.werchat.storage.PlayerDataManager;
 import com.werchat.ui.ChannelSettingsPage;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 
@@ -30,6 +34,12 @@ public class ChannelCommand extends CommandBase {
     private final WerchatPlugin plugin;
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
+    private final PAPIIntegration papi;
+    private static final String CHANNEL_OWNER_COLOR = "#FFAA00";
+    private static final String CHANNEL_MODERATOR_COLOR = "#55FF55";
+    private static final String CHANNEL_MEMBER_COLOR = "#FFFFFF";
+    private static final String SETTINGS_TAB_MAIN = "main";
+    private static final String SETTINGS_TAB_CHANNELS = "channels";
 
     /**
      * Check if sender has a werchat permission, including wildcard support.
@@ -68,7 +78,8 @@ public class ChannelCommand extends CommandBase {
         if (perms.hasPermission(playerId, "*") || perms.hasPermission(playerId, "werchat.*")) return true;
         String[] adminPerms = {"werchat.create", "werchat.remove", "werchat.color", "werchat.nick",
             "werchat.password", "werchat.rename", "werchat.mod", "werchat.distance",
-            "werchat.ban", "werchat.mute", "werchat.world", "werchat.reload"};
+            "werchat.ban", "werchat.mute", "werchat.world", "werchat.description",
+            "werchat.motd", "werchat.reload"};
         for (String perm : adminPerms) {
             if (perms.hasPermission(playerId, perm)) return true;
         }
@@ -80,6 +91,7 @@ public class ChannelCommand extends CommandBase {
         this.plugin = plugin;
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
+        this.papi = PAPIIntegration.register(plugin);
 
         // Available to all players in Adventure mode
         this.setPermissionGroup(GameMode.Adventure);
@@ -113,6 +125,7 @@ public class ChannelCommand extends CommandBase {
         String arg2 = parts.length > 3 ? parts[3] : null;
         String arg3 = parts.length > 4 ? parts[4] : null;
         String arg4 = parts.length > 5 ? parts[5] : null;
+        String argRest = joinArgs(parts, 3);
 
         // No args = open settings entry point
         if (cmd.isEmpty()) {
@@ -137,7 +150,7 @@ public class ChannelCommand extends CommandBase {
                     ctx.sendMessage(Message.raw("You don't have permission to list channels").color("#FF5555"));
                     return;
                 }
-                listChannels(ctx, playerId);
+                openSettings(ctx, SETTINGS_TAB_CHANNELS);
                 return;
             }
             case "join", "j" -> {
@@ -198,6 +211,22 @@ public class ChannelCommand extends CommandBase {
                     return;
                 }
                 setChannelPassword(ctx, playerId, arg1, arg2);
+                return;
+            }
+            case "description", "desc" -> {
+                if (arg1 == null) {
+                    ctx.sendMessage(Message.raw("Usage: /ch description <channel> <text|on|off|clear>").color("#FF5555"));
+                    return;
+                }
+                setChannelDescription(ctx, playerId, arg1, argRest);
+                return;
+            }
+            case "motd" -> {
+                if (arg1 == null) {
+                    ctx.sendMessage(Message.raw("Usage: /ch motd <channel> <text|on|off|clear>").color("#FF5555"));
+                    return;
+                }
+                setChannelMotd(ctx, playerId, arg1, argRest);
                 return;
             }
             case "nick" -> {
@@ -364,6 +393,7 @@ public class ChannelCommand extends CommandBase {
 
         // Focus on this channel
         playerDataManager.setFocusedChannel(playerId, channel.getName());
+        channelManager.sendChannelMotd(playerId, channel);
         ctx.sendMessage(Message.join(
             Message.raw("Now chatting in ").color("#AAAAAA"),
             Message.raw(channel.getName()).color(channel.getColorHex())
@@ -371,136 +401,14 @@ public class ChannelCommand extends CommandBase {
     }
 
     private void showHelp(CommandContext ctx) {
-        ctx.sendMessage(Message.raw("").color("#000000"));
-        ctx.sendMessage(Message.raw("  Werchat - Channel Chat").color("#55FF55").bold(true));
-        ctx.sendMessage(Message.raw("").color("#000000"));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch").color("#FFFFFF"),
-            Message.raw("  Open settings").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch settings").color("#FFFFFF"),
-            Message.raw("  Open settings").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch <name>").color("#FFFFFF"),
-            Message.raw("  Switch channel").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch list").color("#FFFFFF"),
-            Message.raw("  List channels").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch join <name>").color("#FFFFFF"),
-            Message.raw("  Join channel").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch leave <name>").color("#FFFFFF"),
-            Message.raw("  Leave channel").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch who <name>").color("#FFFFFF"),
-            Message.raw("  Show members").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch info <name>").color("#FFFFFF"),
-            Message.raw("  Channel info").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.raw("").color("#000000"));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /msg <player> <text>").color("#FFFFFF"),
-            Message.raw("  Private message").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /r <text>").color("#FFFFFF"),
-            Message.raw("  Reply to PM").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ignore <player>").color("#FFFFFF"),
-            Message.raw("  Toggle ignore").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ignorelist").color("#FFFFFF"),
-            Message.raw("  Show ignored").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch playernick <name> [#color] [#gradient]").color("#FFFFFF"),
-            Message.raw("  Set nickname").color("#AAAAAA")
-        ));
-        ctx.sendMessage(Message.join(
-            Message.raw("  /ch msgcolor <#color> [#gradient]").color("#FFFFFF"),
-            Message.raw("  Set message color").color("#AAAAAA")
-        ));
-
-        // Only show admin commands to players who have at least one admin permission
-        if (hasAnyAdminPermission(ctx)) {
-            ctx.sendMessage(Message.raw("").color("#000000"));
-            ctx.sendMessage(Message.raw("  Channel Management").color("#FFAA00"));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch create <name>").color("#FFFFFF"),
-                Message.raw("  Create channel").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch color <ch> <#tag> [#text]").color("#FFFFFF"),
-                Message.raw("  Set color").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch nick <ch> <nick>").color("#FFFFFF"),
-                Message.raw("  Set shortcut").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch password <ch> [pw]").color("#FFFFFF"),
-                Message.raw("  Set/clear password").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch rename <ch> <name>").color("#FFFFFF"),
-                Message.raw("  Rename channel").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch remove <ch>").color("#FFFFFF"),
-                Message.raw("  Delete channel").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch mod <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Add moderator").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch unmod <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Remove moderator").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch distance <ch> <blocks>").color("#FFFFFF"),
-                Message.raw("  Set range (0=global)").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch world <ch> add|remove <world>").color("#FFFFFF"),
-                Message.raw("  World restriction").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch ban <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Ban player").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch unban <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Unban player").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch mute <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Mute player").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch unmute <ch> <player>").color("#FFFFFF"),
-                Message.raw("  Unmute player").color("#AAAAAA")
-            ));
-            ctx.sendMessage(Message.join(
-                Message.raw("  /ch reload").color("#FFFFFF"),
-                Message.raw("  Reload config/channels").color("#AAAAAA")
-            ));
-        }
-        ctx.sendMessage(Message.raw("").color("#000000"));
+        openSettings(ctx, SETTINGS_TAB_MAIN);
     }
 
     private void openSettings(CommandContext ctx) {
+        openSettings(ctx, null);
+    }
+
+    private void openSettings(CommandContext ctx, String initialTab) {
         Ref<EntityStore> playerRef = ctx.senderAsPlayerRef();
         if (playerRef == null) {
             ctx.sendMessage(Message.raw("Player not found").color("#FF5555"));
@@ -534,7 +442,11 @@ public class ChannelCommand extends CommandBase {
                     return;
                 }
 
-                player.getPageManager().openCustomPage(playerRef, store, new ChannelSettingsPage(plugin, pagePlayerRef));
+                player.getPageManager().openCustomPage(
+                    playerRef,
+                    store,
+                    new ChannelSettingsPage(plugin, pagePlayerRef, initialTab)
+                );
             } catch (Exception e) {
                 plugin.getLogger().at(Level.WARNING).log("Failed to open Werchat settings UI: %s", e.getMessage());
                 ctx.sendMessage(Message.raw("Failed to open settings UI. Check server logs.").color("#FF5555"));
@@ -544,6 +456,8 @@ public class ChannelCommand extends CommandBase {
 
     private void reloadData(CommandContext ctx) {
         try {
+            channelManager.flushPendingSaveNow();
+            playerDataManager.flushPendingNicknameSaveNow();
             plugin.getConfig().load();
             boolean channelsLoaded = channelManager.loadChannels();
             reconcileFocusedChannelsAfterReload();
@@ -588,7 +502,11 @@ public class ChannelCommand extends CommandBase {
             String status = ch.isMember(playerId) ? " [Joined]" : "";
             if (ch.getName().equalsIgnoreCase(focused)) status += " [*]";
             if (ch.isWorldRestricted()) status += " [W:" + ch.getWorldsDisplay() + "]";
-            ctx.sendMessage(Message.raw("[" + ch.getNick() + "] " + ch.getName() + " (" + ch.getMemberCount() + ")" + status).color(ch.getColorHex()));
+            String displayNick = applyPapi(playerId, ch.getNick());
+            ctx.sendMessage(Message.raw("[" + displayNick + "] " + ch.getName() + " (" + ch.getMemberCount() + ")" + status).color(ch.getColorHex()));
+            if (plugin.getConfig().isChannelDescriptionsEnabled() && ch.isDescriptionEnabled() && ch.hasDescription()) {
+                ctx.sendMessage(Message.raw("   " + applyPapi(playerId, ch.getDescription())).color("#9EB3CC"));
+            }
         }
     }
 
@@ -622,6 +540,7 @@ public class ChannelCommand extends CommandBase {
         }
         channel.addMember(playerId);
         playerDataManager.setFocusedChannel(playerId, channel.getName());
+        channelManager.sendChannelMotd(playerId, channel);
         ctx.sendMessage(Message.raw("Joined and focused: " + channel.getName()).color("#55FF55"));
     }
 
@@ -671,25 +590,89 @@ public class ChannelCommand extends CommandBase {
 
         ctx.sendMessage(Message.raw(channel.getName() + " - " + channel.getMemberCount() + " members").color(channel.getColorHex()));
 
-        StringBuilder online = new StringBuilder();
-        int onlineCount = 0;
-
+        List<UUID> onlineMembers = new ArrayList<>();
         for (UUID memberId : channel.getMembers()) {
             PlayerRef member = playerDataManager.getOnlinePlayer(memberId);
             if (member != null) {
-                if (online.length() > 0) online.append(", ");
-                online.append(member.getUsername());
-                onlineCount++;
+                onlineMembers.add(memberId);
             }
         }
 
-        if (onlineCount > 0) {
-            ctx.sendMessage(Message.join(
-                Message.raw("  Online: ").color("#55FF55"),
-                Message.raw(online.toString()).color("#FFFFFF")
-            ));
-        } else {
+        if (onlineMembers.isEmpty()) {
             ctx.sendMessage(Message.raw("  No members online").color("#AAAAAA"));
+            return;
+        }
+
+        onlineMembers.sort((left, right) -> {
+            int leftPriority = getChannelRankPriority(channel, left);
+            int rightPriority = getChannelRankPriority(channel, right);
+            if (leftPriority != rightPriority) {
+                return Integer.compare(leftPriority, rightPriority);
+            }
+            return getOnlineName(left).compareToIgnoreCase(getOnlineName(right));
+        });
+
+        List<Message> parts = new ArrayList<>();
+        parts.add(Message.raw("  Online: ").color("#55FF55"));
+        for (int i = 0; i < onlineMembers.size(); i++) {
+            UUID memberId = onlineMembers.get(i);
+            if (i > 0) {
+                parts.add(Message.raw(", ").color("#AAAAAA"));
+            }
+            parts.add(Message.raw(getOnlineName(memberId)).color(getChannelRankColor(channel, memberId)));
+        }
+        ctx.sendMessage(Message.join(parts.toArray(new Message[0])));
+    }
+
+    private int getChannelRankPriority(Channel channel, UUID memberId) {
+        if (channel.getOwner() != null && channel.getOwner().equals(memberId)) {
+            return 0;
+        }
+        if (channel.isModerator(memberId)) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private String getChannelRankColor(Channel channel, UUID memberId) {
+        int priority = getChannelRankPriority(channel, memberId);
+        if (priority == 0) {
+            return CHANNEL_OWNER_COLOR;
+        }
+        if (priority == 1) {
+            return CHANNEL_MODERATOR_COLOR;
+        }
+        return CHANNEL_MEMBER_COLOR;
+    }
+
+    private String getOnlineName(UUID memberId) {
+        PlayerRef member = playerDataManager.getOnlinePlayer(memberId);
+        if (member != null) {
+            return member.getUsername();
+        }
+        return playerDataManager.getKnownName(memberId);
+    }
+
+    private String applyPapi(UUID playerId, String text) {
+        if (text == null || text.isEmpty() || papi == null) {
+            return text == null ? "" : text;
+        }
+        PlayerRef player = playerDataManager.getOnlinePlayer(playerId);
+        if (player == null) {
+            return text;
+        }
+        return applyPapi(player, text);
+    }
+
+    private String applyPapi(PlayerRef player, String text) {
+        if (text == null || text.isEmpty() || player == null || papi == null) {
+            return text == null ? "" : text;
+        }
+        try {
+            String resolved = papi.setPlaceholders(player, text);
+            return resolved == null ? text : resolved;
+        } catch (Throwable ignored) {
+            return text;
         }
     }
 
@@ -759,6 +742,92 @@ public class ChannelCommand extends CommandBase {
         }
     }
 
+    private void setChannelDescription(CommandContext ctx, UUID playerId, String channelName, String value) {
+        Channel channel = channelManager.findChannel(channelName);
+        if (channel == null) {
+            ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF5555"));
+            return;
+        }
+        if (!hasWerchatPermission(ctx, "werchat.description") && !channel.isModerator(playerId)) {
+            ctx.sendMessage(Message.raw("You must be a channel moderator to do that").color("#FF5555"));
+            return;
+        }
+
+        String input = value == null ? "" : value.trim();
+        if (input.isEmpty()) {
+            ctx.sendMessage(Message.raw("Usage: /ch description <channel> <text|on|off|clear>").color("#FF5555"));
+            return;
+        }
+
+        if (input.equalsIgnoreCase("on")) {
+            channel.setDescriptionEnabled(true);
+            ctx.sendMessage(Message.raw("Description enabled for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+        if (input.equalsIgnoreCase("off")) {
+            channel.setDescriptionEnabled(false);
+            ctx.sendMessage(Message.raw("Description disabled for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+        if (input.equalsIgnoreCase("clear") || input.equalsIgnoreCase("reset")) {
+            channel.setDescription("");
+            channel.setDescriptionEnabled(false);
+            ctx.sendMessage(Message.raw("Description cleared for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+
+        channel.setDescription(input);
+        channel.setDescriptionEnabled(true);
+        ctx.sendMessage(Message.join(
+            Message.raw("Description set for ").color("#55FF55"),
+            Message.raw(channel.getName()).color(channel.getColorHex()),
+            Message.raw(": ").color("#55FF55"),
+            Message.raw(applyPapi(playerId, channel.getDescription())).color("#FFFFFF")
+        ));
+    }
+
+    private void setChannelMotd(CommandContext ctx, UUID playerId, String channelName, String value) {
+        Channel channel = channelManager.findChannel(channelName);
+        if (channel == null) {
+            ctx.sendMessage(Message.raw("Channel not found: " + channelName).color("#FF5555"));
+            return;
+        }
+        if (!hasWerchatPermission(ctx, "werchat.motd") && !channel.isModerator(playerId)) {
+            ctx.sendMessage(Message.raw("You must be a channel moderator to do that").color("#FF5555"));
+            return;
+        }
+
+        String input = value == null ? "" : value.trim();
+        if (input.isEmpty()) {
+            ctx.sendMessage(Message.raw("Usage: /ch motd <channel> <text|on|off|clear>").color("#FF5555"));
+            return;
+        }
+
+        if (input.equalsIgnoreCase("on")) {
+            channel.setMotdEnabled(true);
+            ctx.sendMessage(Message.raw("MOTD enabled for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+        if (input.equalsIgnoreCase("off")) {
+            channel.setMotdEnabled(false);
+            ctx.sendMessage(Message.raw("MOTD disabled for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+        if (input.equalsIgnoreCase("clear") || input.equalsIgnoreCase("reset")) {
+            channel.setMotd("");
+            channel.setMotdEnabled(false);
+            ctx.sendMessage(Message.raw("MOTD cleared for " + channel.getName()).color("#55FF55"));
+            return;
+        }
+
+        channel.setMotd(input);
+        channel.setMotdEnabled(true);
+        ctx.sendMessage(Message.join(
+            Message.raw("MOTD set for ").color("#55FF55"),
+            Message.raw(channel.getName()).color(channel.getColorHex())
+        ));
+    }
+
     private void setChannelNick(CommandContext ctx, UUID playerId, String channelName, String nick) {
         Channel channel = channelManager.findChannel(channelName);
         if (channel == null) {
@@ -770,7 +839,7 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         channel.setNick(nick);
-        ctx.sendMessage(Message.raw("Nick set to: " + nick).color("#55FF55"));
+        ctx.sendMessage(Message.raw("Nick set to: " + applyPapi(playerId, nick)).color("#55FF55"));
     }
 
     private void showChannelInfo(CommandContext ctx, UUID playerId, String channelName) {
@@ -799,7 +868,7 @@ public class ChannelCommand extends CommandBase {
 
         ctx.sendMessage(Message.join(
             Message.raw("  Nick: ").color("#AAAAAA"),
-            Message.raw(channel.getNick()).color("#FFFFFF")
+            Message.raw(applyPapi(playerId, channel.getNick())).color("#FFFFFF")
         ));
         ctx.sendMessage(Message.join(
             Message.raw("  Tag Color: ").color("#AAAAAA"),
@@ -827,6 +896,22 @@ public class ChannelCommand extends CommandBase {
             Message.raw("  Worlds: ").color("#AAAAAA"),
             Message.raw(channel.getWorldsDisplay()).color("#FFFFFF")
         ));
+        if (plugin.getConfig().isChannelDescriptionsEnabled()) {
+            ctx.sendMessage(Message.join(
+                Message.raw("  Description: ").color("#AAAAAA"),
+                Message.raw(channel.isDescriptionEnabled() && channel.hasDescription()
+                    ? applyPapi(playerId, channel.getDescription())
+                    : "Disabled").color("#FFFFFF")
+            ));
+        }
+        if (plugin.getConfig().isChannelMotdSystemEnabled()) {
+            ctx.sendMessage(Message.join(
+                Message.raw("  MOTD: ").color("#AAAAAA"),
+                Message.raw(channel.isMotdEnabled() && channel.hasMotd()
+                    ? applyPapi(playerId, channel.getMotd())
+                    : "Disabled").color("#FFFFFF")
+            ));
+        }
 
         // Show moderators
         StringBuilder modNames = new StringBuilder();
@@ -937,6 +1022,10 @@ public class ChannelCommand extends CommandBase {
             return;
         }
         UUID targetId = target.getUuid();
+        if (channel.getOwner() != null && channel.getOwner().equals(targetId)) {
+            ctx.sendMessage(Message.raw("Cannot remove the channel owner as moderator").color("#FF5555"));
+            return;
+        }
         if (!channel.isModerator(targetId)) {
             ctx.sendMessage(Message.raw(playerName + " is not a moderator").color("#FFFF55"));
             return;
@@ -1007,6 +1096,7 @@ public class ChannelCommand extends CommandBase {
 
         // Notify the banned player
         String banMsg = plugin.getConfig().getBanMessage().replace("{channel}", channel.getName());
+        banMsg = applyPapi(target, banMsg);
         target.sendMessage(Message.raw(banMsg).color("#FF5555"));
 
         ctx.sendMessage(Message.join(
@@ -1068,6 +1158,7 @@ public class ChannelCommand extends CommandBase {
 
         // Notify the muted player
         String muteMsg = plugin.getConfig().getMuteMessage().replace("{channel}", channel.getName());
+        muteMsg = applyPapi(target, muteMsg);
         target.sendMessage(Message.raw(muteMsg).color("#FF5555"));
 
         ctx.sendMessage(Message.join(
@@ -1437,6 +1528,13 @@ public class ChannelCommand extends CommandBase {
                 Message.raw("Example message").color(startHex)
             ));
         }
+    }
+
+    private String joinArgs(String[] parts, int startIndexInclusive) {
+        if (parts == null || startIndexInclusive < 0 || startIndexInclusive >= parts.length) {
+            return null;
+        }
+        return String.join(" ", Arrays.copyOfRange(parts, startIndexInclusive, parts.length));
     }
 
 }

@@ -2,7 +2,7 @@ $C = "../Common.ui";
 $W = "WerchatStyles.ui";
 
 Group {
-  Anchor: (Height: 82, Left: 0, Right: 0);
+  Anchor: (Height: 144, Left: 0, Right: 0);
   LayoutMode: Left;
   Padding: (Left: 10, Right: 10, Top: 10, Bottom: 10);
   Background: (Color: #132338);
@@ -37,6 +37,26 @@ Group {
       Text: "Members: 0";
       Style: (FontSize: 12, TextColor: #9eb3cc);
       Padding: (Top: 3);
+    }
+
+    Label #ChannelOwner {
+      Text: "Owner: None";
+      Style: (FontSize: 12, TextColor: #d8e3f0);
+      Padding: (Top: 2);
+    }
+
+    Label #ChannelDescription {
+      Text: "Description: Off";
+      Style: (FontSize: 12, TextColor: #d8e3f0);
+      Padding: (Top: 2);
+      Visible: true;
+    }
+
+    Label #ChannelMotd {
+      Text: "MOTD: Off";
+      Style: (FontSize: 11, TextColor: #ffe0a3);
+      Padding: (Top: 2);
+      Visible: true;
     }
   }
 

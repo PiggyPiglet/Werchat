@@ -19,6 +19,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.werchat.WerchatPlugin;
 import com.werchat.channels.Channel;
 import com.werchat.channels.ChannelManager;
+import com.werchat.integration.papi.PAPIIntegration;
 import com.werchat.storage.PlayerDataManager;
 
 import javax.annotation.Nonnull;
@@ -40,21 +41,56 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
     private static final String TAB_MAIN = "main";
     private static final String TAB_CHANNELS = "channels";
     private static final String TAB_MOD_PREFIX = "mod:";
+    private static final String MOD_LIST_BANS = "bans";
+    private static final String MOD_LIST_MUTES = "mutes";
+    private static final String MOD_LIST_MODERATORS = "moderators";
     private static final Set<Integer> DISTANCE_PRESETS = Set.of(0, 25, 50, 100, 150, 250, 500);
     private static final int MAX_NICKNAME_LENGTH = 20;
+    private static final int MAX_CHANNEL_DESCRIPTION_LENGTH = 180;
+    private static final int MAX_CHANNEL_MOTD_LENGTH = 220;
+    private static final long TOGGLE_ACTION_COOLDOWN_MS = 1200L;
+    private static final String CHANNEL_OWNER_COLOR = "#FFAA00";
+    private static final String CHANNEL_MODERATOR_COLOR = "#55FF55";
+    private static final String CHANNEL_MEMBER_COLOR = "#FFFFFF";
 
     private final WerchatPlugin plugin;
     private final ChannelManager channelManager;
     private final PlayerDataManager playerDataManager;
+    private final PAPIIntegration papi;
 
     private String activeTab = TAB_MAIN;
+    private String selectedMainChannel;
+    private boolean showJoinPasswordModal;
+    private String pendingJoinPasswordChannel;
+    private boolean showModerationListModal;
+    private String moderationListMode;
     private String statusMessage = "Ready.";
+    private String moderatorActionError = "";
+    private String moderatorActionSuccess = "";
+    private long nextToggleActionAllowedAtMs = 0L;
 
     public ChannelSettingsPage(WerchatPlugin plugin, PlayerRef playerRef) {
         super(playerRef, CustomPageLifetime.CanDismiss, PageEventData.CODEC);
         this.plugin = plugin;
         this.channelManager = plugin.getChannelManager();
         this.playerDataManager = plugin.getPlayerDataManager();
+        this.papi = PAPIIntegration.register(plugin);
+    }
+
+    public ChannelSettingsPage(WerchatPlugin plugin, PlayerRef playerRef, String initialTab) {
+        this(plugin, playerRef);
+        this.activeTab = normalizeInitialTab(initialTab);
+    }
+
+    private String normalizeInitialTab(String tab) {
+        if (tab == null || tab.isBlank()) {
+            return TAB_MAIN;
+        }
+        String normalized = tab.trim().toLowerCase(Locale.ROOT);
+        if (TAB_CHANNELS.equals(normalized)) {
+            return TAB_CHANNELS;
+        }
+        return TAB_MAIN;
     }
 
     @Override
@@ -75,7 +111,10 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         renderModeratorTabs(cmd, events, moderatorChannels);
         renderMainPanel(cmd, viewerId);
         renderChannels(cmd, events, viewerId);
+        renderJoinPasswordModal(cmd);
         renderModeratorPanel(cmd, viewerId);
+        renderModerationListModal(cmd, events, viewerId);
+        renderStatusBanner(cmd);
         cmd.set("#FooterMessage.Text", statusMessage);
     }
 
@@ -91,7 +130,6 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         }
 
         switch (data.button) {
-            case "Close" -> close();
             case "Refresh" -> {
                 statusMessage = "Refreshed.";
                 rebuild();
@@ -99,6 +137,10 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             case "Tab" -> {
                 if (data.tab != null && !data.tab.isBlank()) {
                     activeTab = data.tab.toLowerCase(Locale.ROOT);
+                    closeJoinPasswordModal();
+                    closeModerationListModal();
+                    moderatorActionError = "";
+                    moderatorActionSuccess = "";
                     statusMessage = "Viewing " + activeTab + ".";
                 }
                 rebuild();
@@ -110,6 +152,10 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                     return;
                 }
                 activeTab = TAB_MOD_PREFIX + data.channel.toLowerCase(Locale.ROOT);
+                closeJoinPasswordModal();
+                closeModerationListModal();
+                moderatorActionError = "";
+                moderatorActionSuccess = "";
                 statusMessage = "Managing " + data.channel + ".";
                 rebuild();
             }
@@ -118,7 +164,27 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 rebuild();
             }
             case "Join" -> {
-                handleJoinAction(data.channel, data.password);
+                handleJoinAction(data.channel, null);
+                rebuild();
+            }
+            case "JoinPasswordConfirm" -> {
+                handleJoinPasswordConfirm(data.password);
+                rebuild();
+            }
+            case "JoinPasswordCancel" -> {
+                closeJoinPasswordModal();
+                statusMessage = "Join cancelled.";
+                rebuild();
+            }
+            case "OpenModerationList" -> {
+                openModerationListModal(data.action);
+                rebuild();
+            }
+            case "CloseModerationList" -> {
+                closeModerationListModal();
+                moderatorActionError = "";
+                moderatorActionSuccess = "";
+                statusMessage = "Closed moderation list.";
                 rebuild();
             }
             case "Leave" -> {
@@ -127,11 +193,12 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             }
             case "ModAction" -> {
                 handleModeratorAction(data.action, data.target, data.value, data.password);
-                rebuild();
+                syncModeratorActionFeedbackFromStatus();
+                sendInPlaceUpdatePreserveScroll();
             }
             case "ProfileAction" -> {
                 handleProfileAction(data.action, data.value, data.extra);
-                rebuild();
+                sendInPlaceUpdatePreserveScroll();
             }
             default -> {
                 statusMessage = "Unknown UI action.";
@@ -140,24 +207,44 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         }
     }
 
+    private void sendInPlaceUpdatePreserveScroll() {
+        UICommandBuilder cmd = new UICommandBuilder();
+        UIEventBuilder events = new UIEventBuilder();
+
+        UUID viewerId = playerRef.getUuid();
+        List<Channel> moderatorChannels = getModeratorChannels(viewerId);
+        validateActiveTab(moderatorChannels);
+
+        applyTabState(cmd);
+        renderModeratorTabs(cmd, events, moderatorChannels);
+        renderMainPanel(cmd, viewerId);
+        renderChannels(cmd, events, viewerId);
+        renderJoinPasswordModal(cmd);
+        renderModeratorPanel(cmd, viewerId);
+        renderModerationListModal(cmd, events, viewerId);
+        renderStatusBanner(cmd);
+        cmd.set("#FooterMessage.Text", statusMessage);
+        sendUpdate(cmd, events, false);
+    }
+
     private void bindStaticEvents(UIEventBuilder events) {
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#CloseButton",
-            EventData.of("Button", "Close"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#RefreshButton",
             EventData.of("Button", "Refresh"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TabMainButton",
             EventData.of("Button", "Tab").append("Tab", TAB_MAIN), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TabChannelsButton",
             EventData.of("Button", "Tab").append("Tab", TAB_CHANNELS), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#JoinPasswordModalConfirmButton",
+            EventData.of("Button", "JoinPasswordConfirm")
+                .append("@Password", "#JoinPasswordModalInput.Value"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#JoinPasswordModalCancelButton",
+            EventData.of("Button", "JoinPasswordCancel"), false);
 
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#MainFocusDropdown",
+            EventData.of("Button", "ProfileAction").append("Action", "preview_selected")
+                .append("@Value", "#MainFocusDropdown.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#MainSetFocusButton",
             EventData.of("Button", "ProfileAction").append("Action", "set_focus")
-                .append("@Value", "#MainFocusDropdown.Value"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#MainQuickJoinButton",
-            EventData.of("Button", "ProfileAction").append("Action", "quick_join")
-                .append("@Value", "#MainFocusDropdown.Value"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#MainQuickLeaveButton",
-            EventData.of("Button", "ProfileAction").append("Action", "quick_leave")
                 .append("@Value", "#MainFocusDropdown.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#MainQuickChannelsButton",
             EventData.of("Button", "Tab").append("Tab", TAB_CHANNELS), false);
@@ -190,25 +277,38 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModBanButton",
             EventData.of("Button", "ModAction").append("Action", "ban")
                 .append("@Target", "#ModTargetInput.Value"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModUnbanButton",
-            EventData.of("Button", "ModAction").append("Action", "unban")
-                .append("@Target", "#ModTargetInput.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModMuteButton",
             EventData.of("Button", "ModAction").append("Action", "mute")
-                .append("@Target", "#ModTargetInput.Value"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModUnmuteButton",
-            EventData.of("Button", "ModAction").append("Action", "unmute")
                 .append("@Target", "#ModTargetInput.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModAddModeratorButton",
             EventData.of("Button", "ModAction").append("Action", "addmod")
                 .append("@Target", "#ModTargetInput.Value"), false);
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModRemoveModeratorButton",
-            EventData.of("Button", "ModAction").append("Action", "removemod")
-                .append("@Target", "#ModTargetInput.Value"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModOpenBansButton",
+            EventData.of("Button", "OpenModerationList").append("Action", MOD_LIST_BANS), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModOpenMutesButton",
+            EventData.of("Button", "OpenModerationList").append("Action", MOD_LIST_MUTES), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModOpenModeratorsButton",
+            EventData.of("Button", "OpenModerationList").append("Action", MOD_LIST_MODERATORS), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModerationListModalCloseButton",
+            EventData.of("Button", "CloseModerationList"), false);
 
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModSetNickButton",
             EventData.of("Button", "ModAction").append("Action", "set_nick")
                 .append("@Value", "#ModNickInput.Value"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModSetDescriptionButton",
+            EventData.of("Button", "ModAction").append("Action", "set_description")
+                .append("@Value", "#ModDescriptionInput.Value"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModClearDescriptionButton",
+            EventData.of("Button", "ModAction").append("Action", "clear_description"), false);
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#ModDescriptionEnabledCheck",
+            EventData.of("Button", "ModAction").append("Action", "toggle_description"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModSetMotdButton",
+            EventData.of("Button", "ModAction").append("Action", "set_motd")
+                .append("@Value", "#ModMotdInput.Value"), false);
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#ModClearMotdButton",
+            EventData.of("Button", "ModAction").append("Action", "clear_motd"), false);
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#ModMotdEnabledCheck",
+            EventData.of("Button", "ModAction").append("Action", "toggle_motd"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModSetDistanceButton",
             EventData.of("Button", "ModAction").append("Action", "set_distance")
                 .append("@Value", "#ModDistanceDropdown.Value"), false);
@@ -238,7 +338,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         cmd.set("#MainPanel.Visible", main);
         cmd.set("#ChannelsPanel.Visible", channels);
         cmd.set("#ModeratorPanel.Visible", moderator);
-        cmd.set("#ModeratorTabsSection.Visible", channels);
+        cmd.set("#ModeratorTabsSection.Visible", channels || moderator);
 
         cmd.set("#TabMainButton.Text", main ? "[Main]" : "Main");
         cmd.set("#TabChannelsButton.Text", channels ? "[Channels]" : "Channels");
@@ -253,8 +353,8 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             String selector = "#ModeratorTabs[" + i + "] #ModeratorTabButton";
             String shortName = getModeratorTabShortName(channel);
             String label = activeTab.equals(TAB_MOD_PREFIX + channel.getName().toLowerCase(Locale.ROOT))
-                ? "[M:" + shortName + "]"
-                : "M:" + shortName;
+                ? "[" + shortName + "]"
+                : shortName;
             cmd.set(selector + ".Text", label);
             cmd.set(selector + ".TooltipText", "Manage " + channel.getName());
 
@@ -315,13 +415,14 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
 
         cmd.set("#MainFocusDropdown.Entries", focusEntries);
 
-        String selectedFocus = focused;
+        String selectedFocus = selectedMainChannel;
         if (selectedFocus == null || selectedFocus.isBlank()) {
+            selectedFocus = focused;
+        }
+        if (selectedFocus == null || selectedFocus.isBlank() || !containsDropdownValue(focusValues, selectedFocus)) {
             selectedFocus = focusValues.get(0);
         }
-        if (!containsDropdownValue(focusValues, selectedFocus)) {
-            selectedFocus = focusValues.get(0);
-        }
+        selectedMainChannel = selectedFocus;
         cmd.set("#MainFocusDropdown.Value", selectedFocus == null ? "" : selectedFocus);
 
         int joinedCount = 0;
@@ -336,7 +437,6 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
 
         renderDisplayNamePreview(cmd, displayName, nickColor, nickGradient);
         cmd.set("#MainJoinedCountValue.Text", String.valueOf(joinedCount));
-        cmd.set("#MainJoinedChannelsValue.Text", summarizeJoinedChannels(joinedChannelNames));
         cmd.set("#MainRecentChannelsValue.Text", buildChannelStrip(joinedChannelNames, focused));
         cmd.set("#MainFocusedChannelValue.Text", focused == null || focused.isBlank() ? "None" : focused);
 
@@ -359,20 +459,9 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         Channel selectedChannel = (selectedFocus == null || selectedFocus.isBlank())
             ? null
             : channelManager.findChannel(selectedFocus);
-
-        boolean selectedMember = selectedChannel != null && selectedChannel.isMember(viewerId);
-        boolean quickJoinAllowed = selectedChannel != null
-            && !selectedMember
-            && !selectedChannel.isBanned(viewerId)
-            && !selectedChannel.hasPassword()
-            && (!plugin.getConfig().isEnforceChannelPermissions()
-                || (hasPermission(viewerId, selectedChannel.getJoinPermission())
-                && hasPermission(viewerId, selectedChannel.getReadPermission())));
-        boolean quickLeaveAllowed = selectedChannel != null && selectedMember && !selectedChannel.isDefault();
+        renderSelectedOnlineMembers(cmd, selectedChannel);
 
         cmd.set("#MainSetFocusButton.Disabled", !canSwitch || selectedFocus == null || selectedFocus.isBlank());
-        cmd.set("#MainQuickJoinButton.Disabled", !quickJoinAllowed);
-        cmd.set("#MainQuickLeaveButton.Disabled", !quickLeaveAllowed);
         cmd.set("#MainQuickChannelsButton.Disabled", false);
         cmd.set("#MainSetNickButton.Disabled", !canNick);
         cmd.set("#MainClearNickButton.Disabled", !canNick);
@@ -382,6 +471,130 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         cmd.set("#MainApplyMsgColorButton.Disabled", !canMsgColor);
         cmd.set("#MainApplyMsgGradientButton.Disabled", !canMsgColor);
         cmd.set("#MainClearMsgColorButton.Disabled", !canMsgColor);
+        renderHelpCommands(cmd, viewerId);
+    }
+
+    private void renderHelpCommands(UICommandBuilder cmd, UUID viewerId) {
+        List<HelpCommandLine> lines = buildHelpCommandLines(viewerId);
+        cmd.clear("#MainHelpCommands");
+
+        for (int i = 0; i < lines.size(); i++) {
+            HelpCommandLine line = lines.get(i);
+            String base = "#MainHelpCommands[" + i + "]";
+            cmd.append("#MainHelpCommands", "Werchat/HelpCommandRow.ui");
+            cmd.set(base + " #HelpCommandText.Text", line.text());
+            cmd.set(base + " #HelpCommandText.Style.TextColor", line.colorHex());
+        }
+    }
+
+    private List<HelpCommandLine> buildHelpCommandLines(UUID viewerId) {
+        List<String> playerCommands = new ArrayList<>();
+        playerCommands.add("/ch - Open settings");
+        playerCommands.add("/ch settings - Open settings");
+        playerCommands.add("/ch help - Open this help view");
+
+        if (hasPermission(viewerId, "werchat.list")) {
+            playerCommands.add("/ch list - Open channels tab");
+        }
+        if (hasPermission(viewerId, "werchat.switch")) {
+            playerCommands.add("/ch <name> - Switch focused channel");
+        }
+        if (hasPermission(viewerId, "werchat.join")) {
+            playerCommands.add("/ch join <channel> [password] - Join channel");
+        }
+        if (hasPermission(viewerId, "werchat.leave")) {
+            playerCommands.add("/ch leave <channel> - Leave channel");
+        }
+        if (hasPermission(viewerId, "werchat.who")) {
+            playerCommands.add("/ch who <channel> - Show online members");
+        }
+        if (hasPermission(viewerId, "werchat.info")) {
+            playerCommands.add("/ch info <channel> - Show channel details");
+        }
+        if (hasPermission(viewerId, "werchat.playernick")) {
+            playerCommands.add("/ch playernick <name> [#color] [#gradient] - Set nickname");
+            playerCommands.add("/ch playernick reset - Clear nickname");
+        }
+        if (hasPermission(viewerId, "werchat.msgcolor")) {
+            playerCommands.add("/ch msgcolor <#color> [#gradient] - Set message color");
+            playerCommands.add("/ch msgcolor reset - Clear message color");
+        }
+        if (plugin.getConfig().isAllowPrivateMessages() && hasPermission(viewerId, "werchat.msg")) {
+            playerCommands.add("/msg <player> <message> - Private message");
+            playerCommands.add("/r <message> - Reply to last PM");
+        }
+        if (hasPermission(viewerId, "werchat.ignore")) {
+            playerCommands.add("/ignore <player> - Ignore or unignore player");
+            playerCommands.add("/ignorelist - Show ignored players");
+        }
+
+        List<String> managementCommands = new ArrayList<>();
+        if (hasPermission(viewerId, "werchat.create")) {
+            managementCommands.add("/ch create <name> - Create channel");
+        }
+        if (hasPermission(viewerId, "werchat.remove")) {
+            managementCommands.add("/ch remove <channel> - Delete channel");
+        }
+        if (hasPermission(viewerId, "werchat.rename")) {
+            managementCommands.add("/ch rename <channel> <newname> - Rename channel");
+        }
+        if (hasPermission(viewerId, "werchat.color")) {
+            managementCommands.add("/ch color <channel> <#tag> [#text] - Set channel colors");
+        }
+        if (hasPermission(viewerId, "werchat.nick")) {
+            managementCommands.add("/ch nick <channel> <nick> - Set channel nick");
+        }
+        if (hasPermission(viewerId, "werchat.password")) {
+            managementCommands.add("/ch password <channel> [password] - Set or clear password");
+        }
+        if (hasPermission(viewerId, "werchat.description")) {
+            managementCommands.add("/ch description <channel> <text|on|off|clear> - Description");
+        }
+        if (hasPermission(viewerId, "werchat.motd")) {
+            managementCommands.add("/ch motd <channel> <text|on|off|clear> - MOTD");
+        }
+        if (hasPermission(viewerId, "werchat.distance")) {
+            managementCommands.add("/ch distance <channel> <blocks> - Set range (0 global)");
+        }
+        if (hasPermission(viewerId, "werchat.world")) {
+            managementCommands.add("/ch world <channel> add|remove <world> - World restriction");
+            managementCommands.add("/ch world <channel> none - Clear world restrictions");
+        }
+        if (hasPermission(viewerId, "werchat.mod")) {
+            managementCommands.add("/ch mod <channel> <player> - Add moderator");
+            managementCommands.add("/ch unmod <channel> <player> - Remove moderator");
+        }
+        if (hasPermission(viewerId, "werchat.ban")) {
+            managementCommands.add("/ch ban <channel> <player> - Ban player");
+            managementCommands.add("/ch unban <channel> <player> - Unban player");
+        }
+        if (hasPermission(viewerId, "werchat.mute")) {
+            managementCommands.add("/ch mute <channel> <player> - Mute player");
+            managementCommands.add("/ch unmute <channel> <player> - Unmute player");
+        }
+        if (hasPermission(viewerId, "werchat.playernick.others")) {
+            managementCommands.add("/ch playernick <player> <name> [#color] [#gradient] - Set player nickname");
+        }
+        if (hasPermission(viewerId, "werchat.msgcolor.others")) {
+            managementCommands.add("/ch msgcolor <player> <#color> [#gradient] - Set player message color");
+        }
+        if (hasPermission(viewerId, "werchat.reload")) {
+            managementCommands.add("/ch reload - Reload config and channels");
+        }
+
+        List<HelpCommandLine> lines = new ArrayList<>();
+        lines.add(new HelpCommandLine("Player Commands", "#8ea5c0"));
+        for (String command : playerCommands) {
+            lines.add(new HelpCommandLine(command, "#d8e3f0"));
+        }
+        if (!managementCommands.isEmpty()) {
+            lines.add(new HelpCommandLine("", "#d8e3f0"));
+            lines.add(new HelpCommandLine("Management Commands", "#8ea5c0"));
+            for (String command : managementCommands) {
+                lines.add(new HelpCommandLine(command, "#d8e3f0"));
+            }
+        }
+        return lines;
     }
 
     private List<Channel> getFocusableChannels(UUID viewerId) {
@@ -468,15 +681,73 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         return "Sample message (channel default)";
     }
 
-    private String summarizeJoinedChannels(List<String> channels) {
-        if (channels == null || channels.isEmpty()) {
-            return "None";
+    private String shortenText(String value, int maxLen) {
+        if (value == null) {
+            return "";
         }
-        String joined = String.join(", ", channels);
-        if (joined.length() <= 64) {
-            return joined;
+        String trimmed = value.trim();
+        if (trimmed.length() <= maxLen) {
+            return trimmed;
         }
-        return joined.substring(0, 61) + "...";
+        if (maxLen <= 3) {
+            return trimmed.substring(0, maxLen);
+        }
+        return trimmed.substring(0, maxLen - 3) + "...";
+    }
+
+    private String buildChannelDescriptionLine(UUID viewerId, Channel channel) {
+        if (!plugin.getConfig().isChannelDescriptionsEnabled()) {
+            return "Description: Disabled in config";
+        }
+        if (!channel.isDescriptionEnabled()) {
+            return "Description: Off";
+        }
+        if (!channel.hasDescription()) {
+            return "Description: Not set";
+        }
+        return "Description: " + shortenText(applyPapi(viewerId, channel.getDescription()), 80);
+    }
+
+    private String buildChannelMotdLine(UUID viewerId, Channel channel, boolean member) {
+        if (!plugin.getConfig().isChannelMotdSystemEnabled()) {
+            return "MOTD: Disabled in config";
+        }
+        if (!channel.isMotdEnabled()) {
+            return "MOTD: Off";
+        }
+        if (!channel.hasMotd()) {
+            return "MOTD: Not set";
+        }
+        if (!member) {
+            return "MOTD: Set (join to view)";
+        }
+        return "MOTD: " + shortenText(applyPapi(viewerId, channel.getMotd()), 80);
+    }
+
+    private String buildModeratorDescriptionValue(UUID viewerId, Channel channel) {
+        String prefix = plugin.getConfig().isChannelDescriptionsEnabled()
+            ? "Description"
+            : "Description (global off)";
+        if (!channel.isDescriptionEnabled()) {
+            return prefix + ": Off";
+        }
+        if (!channel.hasDescription()) {
+            return prefix + ": Not set";
+        }
+        return prefix + ": " + shortenText(applyPapi(viewerId, channel.getDescription()), 100);
+    }
+
+    private String buildModeratorMotdValue(UUID viewerId, Channel channel) {
+        String prefix = plugin.getConfig().isChannelMotdSystemEnabled()
+            ? "MOTD"
+            : "MOTD (global off)";
+        if (!channel.isMotdEnabled()) {
+            return prefix + ": Off";
+        }
+        if (!channel.hasMotd()) {
+            return prefix + ": Not set";
+        }
+        return prefix + ": " + shortenText(applyPapi(viewerId, channel.getMotd()), 100);
     }
 
     private String buildChannelStrip(List<String> channels, String focused) {
@@ -515,6 +786,91 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         return strip;
     }
 
+    private void renderSelectedOnlineMembers(UICommandBuilder cmd, Channel selectedChannel) {
+        if (selectedChannel == null) {
+            cmd.set("#MainSelectedMembersSummary.Text", "No channel selected.");
+            hideSelectedMemberRows(cmd);
+            return;
+        }
+
+        List<OnlineMemberEntry> rankedOnlineMembers = getRankedOnlineMembers(selectedChannel);
+        cmd.set("#MainSelectedMembersSummary.Text", rankedOnlineMembers.size() + " online");
+
+        int previewLimit = Math.min(5, rankedOnlineMembers.size());
+        for (int i = 0; i < 5; i++) {
+            String selector = "#MainSelectedMember" + (i + 1);
+            if (i < previewLimit) {
+                OnlineMemberEntry entry = rankedOnlineMembers.get(i);
+                cmd.set(selector + ".Text", entry.name());
+                cmd.set(selector + ".Style.TextColor", entry.color());
+                cmd.set(selector + ".Visible", true);
+            } else {
+                cmd.set(selector + ".Visible", false);
+            }
+        }
+
+        if (rankedOnlineMembers.size() > previewLimit) {
+            cmd.set("#MainSelectedMembersMore.Text", "+" + (rankedOnlineMembers.size() - previewLimit) + " more online");
+            cmd.set("#MainSelectedMembersMore.Visible", true);
+        } else {
+            cmd.set("#MainSelectedMembersMore.Visible", false);
+        }
+    }
+
+    private void hideSelectedMemberRows(UICommandBuilder cmd) {
+        for (int i = 1; i <= 5; i++) {
+            cmd.set("#MainSelectedMember" + i + ".Visible", false);
+        }
+        cmd.set("#MainSelectedMembersMore.Visible", false);
+    }
+
+    private List<OnlineMemberEntry> getRankedOnlineMembers(Channel channel) {
+        List<OnlineMemberEntry> members = new ArrayList<>();
+        for (UUID memberId : channel.getMembers()) {
+            PlayerRef online = playerDataManager.getOnlinePlayer(memberId);
+            if (online == null) {
+                continue;
+            }
+            members.add(new OnlineMemberEntry(
+                online.getUsername(),
+                getChannelRankColor(channel, memberId),
+                getChannelRankPriority(channel, memberId)
+            ));
+        }
+
+        members.sort((left, right) -> {
+            if (left.priority() != right.priority()) {
+                return Integer.compare(left.priority(), right.priority());
+            }
+            return left.name().compareToIgnoreCase(right.name());
+        });
+        return members;
+    }
+
+    private int getChannelRankPriority(Channel channel, UUID playerId) {
+        if (channel.getOwner() != null && channel.getOwner().equals(playerId)) {
+            return 0;
+        }
+        if (channel.isModerator(playerId)) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private String getChannelRankColor(Channel channel, UUID playerId) {
+        int priority = getChannelRankPriority(channel, playerId);
+        if (priority == 0) {
+            return CHANNEL_OWNER_COLOR;
+        }
+        if (priority == 1) {
+            return CHANNEL_MODERATOR_COLOR;
+        }
+        return CHANNEL_MEMBER_COLOR;
+    }
+
+    private record OnlineMemberEntry(String name, String color, int priority) { }
+    private record HelpCommandLine(String text, String colorHex) { }
+
     private void renderDisplayNamePreview(UICommandBuilder cmd, String displayName, String nickColor, String nickGradient) {
         String name = (displayName == null || displayName.isBlank()) ? "-" : displayName;
         String startColor = defaultColor(nickColor);
@@ -549,16 +905,22 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             cmd.append("#ChannelRows", "Werchat/ChannelRow.ui");
             String base = "#ChannelRows[" + index + "]";
 
-            cmd.set(base + " #ChannelTag.Text", "[" + channel.getNick() + "]");
+            cmd.set(base + " #ChannelTag.Text", "[" + applyPapi(viewerId, channel.getNick()) + "]");
             cmd.set(base + " #ChannelTag.Style.TextColor", channel.getColorHex());
             cmd.set(base + " #ChannelName.Text", channel.getName());
             cmd.set(base + " #ChannelName.Style.TextColor", channel.getColorHex());
 
             String meta = buildChannelMeta(channel, viewerId, focused);
             cmd.set(base + " #ChannelMeta.Text", meta);
+            cmd.set(base + " #ChannelOwner.Text", buildChannelOwnerLine(channel));
 
             boolean member = channel.isMember(viewerId);
             boolean focusedChannel = focused != null && focused.equalsIgnoreCase(channel.getName());
+            cmd.set(base + " #ChannelDescription.Visible", true);
+            cmd.set(base + " #ChannelDescription.Text", buildChannelDescriptionLine(viewerId, channel));
+            cmd.set(base + " #ChannelMotd.Visible", true);
+            cmd.set(base + " #ChannelMotd.Text", buildChannelMotdLine(viewerId, channel, member));
+
             boolean canJoin = !member
                 && !channel.isBanned(viewerId)
                 && (!plugin.getConfig().isEnforceChannelPermissions() || hasPermission(viewerId, channel.getJoinPermission()));
@@ -573,9 +935,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             events.addEventBinding(
                 CustomUIEventBindingType.Activating,
                 base + " #JoinButton",
-                EventData.of("Button", "Join")
-                    .append("Channel", channel.getName())
-                    .append("@Password", "#JoinPasswordInput.Value"),
+                EventData.of("Button", "Join").append("Channel", channel.getName()),
                 false
             );
             events.addEventBinding(
@@ -594,6 +954,208 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         }
 
         cmd.set("#ChannelsEmptyLabel.Visible", index == 0);
+    }
+
+    private void renderJoinPasswordModal(UICommandBuilder cmd) {
+        boolean visible = TAB_CHANNELS.equals(activeTab)
+            && showJoinPasswordModal
+            && pendingJoinPasswordChannel != null
+            && !pendingJoinPasswordChannel.isBlank();
+
+        if (!visible) {
+            cmd.set("#JoinPasswordModalBackdrop.Visible", false);
+            return;
+        }
+
+        Channel pending = channelManager.findChannel(pendingJoinPasswordChannel);
+        if (pending == null || !pending.hasPassword()) {
+            closeJoinPasswordModal();
+            cmd.set("#JoinPasswordModalBackdrop.Visible", false);
+            return;
+        }
+
+        cmd.set("#JoinPasswordModalBackdrop.Visible", true);
+        cmd.set("#JoinPasswordModalTitle.Text", "Locked: " + pending.getName());
+        cmd.set("#JoinPasswordModalSubtitle.Text", "Enter the password to join " + pending.getName() + ".");
+        cmd.set("#JoinPasswordModalInput.Value", "");
+    }
+
+    private void renderModerationListModal(UICommandBuilder cmd, UIEventBuilder events, UUID viewerId) {
+        boolean visible = activeTab.startsWith(TAB_MOD_PREFIX)
+            && showModerationListModal
+            && moderationListMode != null
+            && !moderationListMode.isBlank();
+
+        if (!visible) {
+            cmd.set("#ModerationListModalBackdrop.Visible", false);
+            return;
+        }
+
+        Channel channel = getActiveModeratorChannel(viewerId);
+        if (channel == null) {
+            closeModerationListModal();
+            cmd.set("#ModerationListModalBackdrop.Visible", false);
+            return;
+        }
+
+        String title;
+        String subtitle;
+        String actionLabel;
+        String actionKey;
+        List<UUID> entries = new ArrayList<>();
+
+        switch (moderationListMode) {
+            case MOD_LIST_BANS -> {
+                title = "Banned Players";
+                subtitle = "Unban players from " + channel.getName() + ".";
+                actionLabel = "Unban";
+                actionKey = "unban_uuid";
+                entries.addAll(channel.getBanned());
+            }
+            case MOD_LIST_MUTES -> {
+                title = "Muted Players";
+                subtitle = "Unmute players in " + channel.getName() + ".";
+                actionLabel = "Unmute";
+                actionKey = "unmute_uuid";
+                entries.addAll(channel.getMuted());
+            }
+            case MOD_LIST_MODERATORS -> {
+                title = "Channel Moderators";
+                subtitle = "Remove moderators in " + channel.getName() + ".";
+                actionLabel = "Remove";
+                actionKey = "removemod_uuid";
+                entries.addAll(channel.getModerators());
+            }
+            default -> {
+                closeModerationListModal();
+                cmd.set("#ModerationListModalBackdrop.Visible", false);
+                return;
+            }
+        }
+
+        entries.sort((left, right) -> {
+            int leftPriority = getChannelRankPriority(channel, left);
+            int rightPriority = getChannelRankPriority(channel, right);
+            if (leftPriority != rightPriority) {
+                return Integer.compare(leftPriority, rightPriority);
+            }
+            return resolvePlayerName(left).compareToIgnoreCase(resolvePlayerName(right));
+        });
+
+        cmd.set("#ModerationListModalBackdrop.Visible", true);
+        cmd.set("#ModerationListModalTitle.Text", title);
+        cmd.set("#ModerationListModalSubtitle.Text", subtitle);
+
+        cmd.clear("#ModerationListModalRows");
+        cmd.set("#ModerationListModalEmptyLabel.Visible", entries.isEmpty());
+        if (entries.isEmpty()) {
+            return;
+        }
+
+        for (int i = 0; i < entries.size(); i++) {
+            UUID targetId = entries.get(i);
+            String base = "#ModerationListModalRows[" + i + "]";
+
+            cmd.append("#ModerationListModalRows", "Werchat/ModerationListRow.ui");
+            cmd.set(base + " #ModerationListEntryName.Text", resolvePlayerName(targetId));
+            cmd.set(base + " #ModerationListEntryName.Style.TextColor", getChannelRankColor(channel, targetId));
+
+            boolean ownerLocked = MOD_LIST_MODERATORS.equals(moderationListMode)
+                && channel.getOwner() != null
+                && channel.getOwner().equals(targetId);
+            if (ownerLocked) {
+                cmd.set(base + " #ModerationListEntryActionButton.Text", "Owner");
+                cmd.set(base + " #ModerationListEntryActionButton.Disabled", true);
+                continue;
+            }
+
+            cmd.set(base + " #ModerationListEntryActionButton.Text", actionLabel);
+            cmd.set(base + " #ModerationListEntryActionButton.Disabled", false);
+            events.addEventBinding(
+                CustomUIEventBindingType.Activating,
+                base + " #ModerationListEntryActionButton",
+                EventData.of("Button", "ModAction")
+                    .append("Action", actionKey)
+                    .append("Value", targetId.toString()),
+                false
+            );
+        }
+    }
+
+    private void renderStatusBanner(UICommandBuilder cmd) {
+        String message = statusMessage == null ? "" : statusMessage.trim();
+        boolean visible = !message.isEmpty() && isErrorStatusMessage(message);
+        cmd.set("#StatusBanner.Visible", visible);
+        if (!visible) {
+            return;
+        }
+
+        cmd.set("#StatusBannerMessage.Text", message);
+        cmd.set("#StatusBannerMessage.Style.TextColor", "#FF5555");
+    }
+
+    private void renderModeratorActionFeedback(UICommandBuilder cmd) {
+        String errorMessage = moderatorActionError == null ? "" : moderatorActionError.trim();
+        boolean errorVisible = !errorMessage.isEmpty();
+        cmd.set("#ModActionErrorMessage.Visible", errorVisible);
+        cmd.set("#ModActionErrorMessage.Text", errorVisible ? errorMessage : "");
+
+        String successMessage = moderatorActionSuccess == null ? "" : moderatorActionSuccess.trim();
+        boolean successVisible = !successMessage.isEmpty();
+        cmd.set("#ModActionSuccessMessage.Visible", successVisible);
+        cmd.set("#ModActionSuccessMessage.Text", successVisible ? successMessage : "");
+    }
+
+    private void syncModeratorActionFeedbackFromStatus() {
+        String message = statusMessage == null ? "" : statusMessage.trim();
+        if (message.isEmpty()) {
+            moderatorActionError = "";
+            moderatorActionSuccess = "";
+            return;
+        }
+
+        if (isErrorStatusMessage(message)) {
+            moderatorActionError = message;
+            moderatorActionSuccess = "";
+            return;
+        }
+
+        moderatorActionError = "";
+        moderatorActionSuccess = message;
+    }
+
+    private boolean isErrorStatusMessage(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+
+        String lower = message.toLowerCase(Locale.ROOT);
+        return containsAny(lower,
+            "error", "failed", "unknown", "invalid", "cannot", "can't", "wrong", "not found",
+            "required", "unavailable", "don't have permission", "no join permission", "no read permission",
+            "cannot be", "must be", "banned from", "not in", "not a moderator", "empty", "please wait");
+    }
+
+    private boolean enforceToggleCooldown() {
+        long now = System.currentTimeMillis();
+        if (now < nextToggleActionAllowedAtMs) {
+            long remainingMs = nextToggleActionAllowedAtMs - now;
+            double remaining = Math.max(0.1D, remainingMs / 1000.0D);
+            statusMessage = String.format(Locale.ROOT, "Please wait %.1fs before toggling again.", remaining);
+            return false;
+        }
+
+        nextToggleActionAllowedAtMs = now + TOGGLE_ACTION_COOLDOWN_MS;
+        return true;
+    }
+
+    private boolean containsAny(String haystack, String... needles) {
+        for (String needle : needles) {
+            if (haystack.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void renderModeratorPanel(UICommandBuilder cmd, UUID viewerId) {
@@ -618,12 +1180,19 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         cmd.set("#ModeratorPasswordValue.Text", "Password: " + (channel.hasPassword() ? "Enabled" : "None"));
         cmd.set("#ModeratorTagColorValue.Text", "Tag Color: " + channel.getColorHex());
         cmd.set("#ModeratorTextColorValue.Text", "Text Color: " + (channel.hasMessageColor() ? channel.getMessageColorHex() : "Default"));
+        cmd.set("#ModeratorDescriptionValue.Text", buildModeratorDescriptionValue(viewerId, channel));
+        cmd.set("#ModeratorMotdValue.Text", buildModeratorMotdValue(viewerId, channel));
 
         cmd.set("#ModNickInput.Value", channel.getNick());
+        cmd.set("#ModDescriptionInput.Value", channel.hasDescription() ? channel.getDescription() : "");
+        cmd.set("#ModDescriptionEnabledCheck.Value", channel.isDescriptionEnabled());
+        cmd.set("#ModMotdInput.Value", channel.hasMotd() ? channel.getMotd() : "");
+        cmd.set("#ModMotdEnabledCheck.Value", channel.isMotdEnabled());
         cmd.set("#ModDistanceDropdown.Value", toDistancePresetValue(channel.getDistance()));
         cmd.set("#ModDistanceInput.Value", String.valueOf(Math.max(0, channel.getDistance())));
         cmd.set("#ModTagColorPicker.Color", channel.getColorHex());
         cmd.set("#ModTextColorPicker.Color", channel.hasMessageColor() ? channel.getMessageColorHex() : channel.getColorHex());
+        renderModeratorActionFeedback(cmd);
 
     }
 
@@ -650,6 +1219,18 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         return meta.toString();
     }
 
+    private String buildChannelOwnerLine(Channel channel) {
+        UUID ownerId = channel.getOwner();
+        if (ownerId == null) {
+            return "Owner: None";
+        }
+        String ownerName = playerDataManager.getKnownName(ownerId);
+        if (ownerName == null || ownerName.isBlank()) {
+            ownerName = ownerId.toString().substring(0, 8);
+        }
+        return "Owner: " + ownerName;
+    }
+
     private void handleFocusAction(String channelName) {
         Channel channel = channelManager.findChannel(channelName);
         UUID viewerId = playerRef.getUuid();
@@ -668,25 +1249,111 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         }
 
         playerDataManager.setFocusedChannel(viewerId, channel.getName());
+        channelManager.sendChannelMotd(viewerId, channel);
         statusMessage = "Now chatting in " + channel.getName() + ".";
     }
 
-    private void handleJoinAction(String channelName, String password) {
+    private boolean handleJoinAction(String channelName, String password) {
         Channel channel = channelManager.findChannel(channelName);
         UUID viewerId = playerRef.getUuid();
         if (channel == null) {
             statusMessage = "Channel not found.";
-            return;
+            return false;
         }
         if (channel.isMember(viewerId)) {
             statusMessage = "Already in " + channel.getName() + ".";
-            return;
+            closeJoinPasswordModal();
+            return false;
+        }
+        if (channel.hasPassword() && (password == null || password.isBlank())) {
+            pendingJoinPasswordChannel = channel.getName();
+            showJoinPasswordModal = true;
+            statusMessage = "Password required for " + channel.getName() + ".";
+            return false;
         }
 
         if (attemptJoin(viewerId, channel, password)) {
             playerDataManager.setFocusedChannel(viewerId, channel.getName());
+            channelManager.sendChannelMotd(viewerId, channel);
+            closeJoinPasswordModal();
             statusMessage = "Joined and focused " + channel.getName() + ".";
+            return true;
         }
+
+        if (channel.hasPassword()) {
+            pendingJoinPasswordChannel = channel.getName();
+            showJoinPasswordModal = true;
+        }
+        return false;
+    }
+
+    private void handleJoinPasswordConfirm(String password) {
+        if (pendingJoinPasswordChannel == null || pendingJoinPasswordChannel.isBlank()) {
+            closeJoinPasswordModal();
+            statusMessage = "No locked channel selected.";
+            return;
+        }
+        if (password == null || password.isBlank()) {
+            statusMessage = "Enter a password first.";
+            return;
+        }
+        handleJoinAction(pendingJoinPasswordChannel, password);
+    }
+
+    private void closeJoinPasswordModal() {
+        showJoinPasswordModal = false;
+        pendingJoinPasswordChannel = null;
+    }
+
+    private void openModerationListModal(String mode) {
+        if (mode == null || mode.isBlank()) {
+            statusMessage = "Unknown moderation list.";
+            return;
+        }
+
+        if (!mode.equals(MOD_LIST_BANS) && !mode.equals(MOD_LIST_MUTES) && !mode.equals(MOD_LIST_MODERATORS)) {
+            statusMessage = "Unknown moderation list.";
+            return;
+        }
+
+        UUID viewerId = playerRef.getUuid();
+        Channel channel = getActiveModeratorChannel(viewerId);
+        if (channel == null) {
+            statusMessage = "No moderator channel selected.";
+            return;
+        }
+        if (!isChannelModerator(viewerId, channel)) {
+            statusMessage = "You are not a moderator of " + channel.getName() + ".";
+            return;
+        }
+
+        moderationListMode = mode;
+        showModerationListModal = true;
+        if (mode.equals(MOD_LIST_BANS)) {
+            statusMessage = "Viewing banned players.";
+        } else if (mode.equals(MOD_LIST_MUTES)) {
+            statusMessage = "Viewing muted players.";
+        } else {
+            statusMessage = "Viewing channel moderators.";
+        }
+    }
+
+    private void closeModerationListModal() {
+        showModerationListModal = false;
+        moderationListMode = null;
+    }
+
+    private String resolvePlayerName(UUID playerId) {
+        PlayerRef online = playerDataManager.getOnlinePlayer(playerId);
+        if (online != null) {
+            return online.getUsername();
+        }
+
+        String known = playerDataManager.getKnownName(playerId);
+        if (known != null && !known.isBlank()) {
+            return known;
+        }
+        return playerId.toString().substring(0, 8);
     }
 
     private boolean attemptJoin(UUID viewerId, Channel channel, String password) {
@@ -754,6 +1421,10 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         }
 
         switch (action) {
+            case "preview_selected" -> {
+                selectedMainChannel = (value == null || value.isBlank()) ? null : value;
+                statusMessage = selectedMainChannel == null ? "Select a channel." : "Selected " + selectedMainChannel + ".";
+            }
             case "set_focus" -> {
                 if (!hasPermission(viewerId, "werchat.switch")) {
                     statusMessage = "You don't have permission to switch channels.";
@@ -768,39 +1439,8 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                     statusMessage = "You are not in that channel.";
                     return;
                 }
+                selectedMainChannel = channel.getName();
                 handleFocusAction(channel.getName());
-            }
-            case "quick_join" -> {
-                if (value == null || value.isBlank()) {
-                    statusMessage = "Select a channel first.";
-                    return;
-                }
-                Channel channel = channelManager.findChannel(value);
-                if (channel == null) {
-                    statusMessage = "Channel not found.";
-                    return;
-                }
-                if (channel.isMember(viewerId)) {
-                    statusMessage = "Already in " + channel.getName() + ".";
-                    return;
-                }
-                if (channel.hasPassword()) {
-                    statusMessage = "Use /ch join " + channel.getName() + " <password> for password channels.";
-                    return;
-                }
-                handleJoinAction(channel.getName(), null);
-            }
-            case "quick_leave" -> {
-                if (value == null || value.isBlank()) {
-                    statusMessage = "Select a channel first.";
-                    return;
-                }
-                Channel channel = channelManager.findChannel(value);
-                if (channel == null) {
-                    statusMessage = "Channel not found.";
-                    return;
-                }
-                handleLeaveAction(channel.getName());
             }
             case "set_nickname" -> {
                 if (!hasPermission(viewerId, "werchat.playernick")) {
@@ -951,6 +1591,15 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 channel.unban(target);
                 statusMessage = "Unbanned " + playerDataManager.getKnownName(target) + " in " + channel.getName() + ".";
             }
+            case "unban_uuid" -> {
+                UUID target = parseUuid(value);
+                if (target == null || !channel.getBanned().contains(target)) {
+                    statusMessage = "Target not found in banned list.";
+                    return;
+                }
+                channel.unban(target);
+                statusMessage = "Unbanned " + resolvePlayerName(target) + " in " + channel.getName() + ".";
+            }
             case "mute" -> {
                 UUID target = resolveTargetUuid(targetName, channel);
                 if (target == null) {
@@ -968,6 +1617,15 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 }
                 channel.unmute(target);
                 statusMessage = "Unmuted " + playerDataManager.getKnownName(target) + " in " + channel.getName() + ".";
+            }
+            case "unmute_uuid" -> {
+                UUID target = parseUuid(value);
+                if (target == null || !channel.getMuted().contains(target)) {
+                    statusMessage = "Target not found in muted list.";
+                    return;
+                }
+                channel.unmute(target);
+                statusMessage = "Unmuted " + resolvePlayerName(target) + " in " + channel.getName() + ".";
             }
             case "addmod" -> {
                 UUID target = resolveTargetUuid(targetName, channel);
@@ -991,6 +1649,19 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 channel.removeModerator(target);
                 statusMessage = "Removed moderator " + playerDataManager.getKnownName(target) + " in " + channel.getName() + ".";
             }
+            case "removemod_uuid" -> {
+                UUID target = parseUuid(value);
+                if (target == null || !channel.getModerators().contains(target)) {
+                    statusMessage = "Target not found in moderator list.";
+                    return;
+                }
+                if (channel.getOwner() != null && channel.getOwner().equals(target)) {
+                    statusMessage = "Channel owner cannot be removed as moderator.";
+                    return;
+                }
+                channel.removeModerator(target);
+                statusMessage = "Removed moderator " + resolvePlayerName(target) + " in " + channel.getName() + ".";
+            }
             case "set_nick" -> {
                 if (value == null || value.isBlank()) {
                     statusMessage = "Channel nick cannot be empty.";
@@ -998,6 +1669,60 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 }
                 channel.setNick(value.trim());
                 statusMessage = "Channel nick updated.";
+            }
+            case "set_description" -> {
+                String input = value == null ? "" : value.trim();
+                if (input.isEmpty()) {
+                    statusMessage = "Description cannot be empty.";
+                    return;
+                }
+                if (input.length() > MAX_CHANNEL_DESCRIPTION_LENGTH) {
+                    statusMessage = "Description too long (max " + MAX_CHANNEL_DESCRIPTION_LENGTH + ").";
+                    return;
+                }
+                channel.setDescription(input);
+                channel.setDescriptionEnabled(true);
+                statusMessage = "Description updated.";
+            }
+            case "clear_description" -> {
+                channel.setDescription("");
+                channel.setDescriptionEnabled(false);
+                statusMessage = "Description cleared.";
+            }
+            case "toggle_description" -> {
+                if (!enforceToggleCooldown()) {
+                    return;
+                }
+                boolean enabled = !channel.isDescriptionEnabled();
+                channel.setDescriptionEnabled(enabled);
+                statusMessage = enabled ? "Description enabled." : "Description disabled.";
+            }
+            case "set_motd" -> {
+                String input = value == null ? "" : value.trim();
+                if (input.isEmpty()) {
+                    statusMessage = "MOTD cannot be empty.";
+                    return;
+                }
+                if (input.length() > MAX_CHANNEL_MOTD_LENGTH) {
+                    statusMessage = "MOTD too long (max " + MAX_CHANNEL_MOTD_LENGTH + ").";
+                    return;
+                }
+                channel.setMotd(input);
+                channel.setMotdEnabled(true);
+                statusMessage = "MOTD updated.";
+            }
+            case "clear_motd" -> {
+                channel.setMotd("");
+                channel.setMotdEnabled(false);
+                statusMessage = "MOTD cleared.";
+            }
+            case "toggle_motd" -> {
+                if (!enforceToggleCooldown()) {
+                    return;
+                }
+                boolean enabled = !channel.isMotdEnabled();
+                channel.setMotdEnabled(enabled);
+                statusMessage = enabled ? "MOTD enabled." : "MOTD disabled.";
             }
             case "set_distance" -> {
                 if (value == null || value.isBlank()) {
@@ -1145,6 +1870,17 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         return null;
     }
 
+    private UUID parseUuid(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
     private Color parseHexColor(String value) {
         if (value == null) {
             return null;
@@ -1177,6 +1913,22 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             return null;
         }
         return String.format("#%02X%02X%02X", parsed.getRed(), parsed.getGreen(), parsed.getBlue());
+    }
+
+    private String applyPapi(UUID viewerId, String text) {
+        if (text == null || text.isEmpty() || papi == null) {
+            return text == null ? "" : text;
+        }
+        PlayerRef viewer = playerDataManager.getOnlinePlayer(viewerId);
+        if (viewer == null) {
+            return text;
+        }
+        try {
+            String resolved = papi.setPlaceholders(viewer, text);
+            return resolved == null ? text : resolved;
+        } catch (Throwable ignored) {
+            return text;
+        }
     }
 
     private String toDistancePresetValue(int distance) {

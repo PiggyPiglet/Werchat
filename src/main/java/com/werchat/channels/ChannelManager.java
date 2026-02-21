@@ -1,7 +1,10 @@
 package com.werchat.channels;
 
 import com.google.gson.*;
+import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.werchat.WerchatPlugin;
+import com.werchat.integration.papi.PAPIIntegration;
 import com.werchat.storage.PlayerDataManager;
 
 import java.awt.Color;
@@ -12,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 /**
@@ -26,16 +30,72 @@ public class ChannelManager {
     private final Map<String, Channel> channels;
     private final Gson gson;
     private final ScheduledExecutorService saveExecutor;
+    private final Set<UUID> motdShownThisLogin;
+    private final PAPIIntegration papi;
     private final Object saveStateLock = new Object();
     private ScheduledFuture<?> pendingSaveTask;
     private boolean suppressDirtyNotifications;
     private Channel defaultChannel;
 
+    private static final class ChannelSaveSnapshot {
+        private final String name;
+        private final String nick;
+        private final String colorHex;
+        private final String messageColorHex;
+        private final String format;
+        private final int distance;
+        private final Set<String> worlds;
+        private final String password;
+        private final String quickChatSymbol;
+        private final boolean quickChatEnabled;
+        private final boolean isDefault;
+        private final boolean autoJoin;
+        private final boolean focusable;
+        private final boolean verbose;
+        private final String description;
+        private final boolean descriptionEnabled;
+        private final String motd;
+        private final boolean motdEnabled;
+        private final UUID owner;
+        private final Set<UUID> moderators;
+        private final Set<UUID> members;
+        private final Set<UUID> banned;
+        private final Set<UUID> muted;
+
+        private ChannelSaveSnapshot(Channel channel) {
+            this.name = channel.getName();
+            this.nick = channel.getNick();
+            this.colorHex = channel.getColorHex();
+            this.messageColorHex = channel.hasMessageColor() ? channel.getMessageColorHex() : "";
+            this.format = channel.getFormat();
+            this.distance = channel.getDistance();
+            this.worlds = channel.getWorlds();
+            this.password = channel.getPassword();
+            this.quickChatSymbol = channel.hasQuickChatSymbol() ? channel.getQuickChatSymbol() : "";
+            this.quickChatEnabled = channel.isQuickChatEnabled();
+            this.isDefault = channel.isDefault();
+            this.autoJoin = channel.isAutoJoin();
+            this.focusable = channel.isFocusable();
+            this.verbose = channel.isVerbose();
+            this.description = channel.getDescription();
+            this.descriptionEnabled = channel.isDescriptionEnabled();
+            this.motd = channel.getMotd();
+            this.motdEnabled = channel.isMotdEnabled();
+            this.owner = channel.getOwner();
+            this.moderators = channel.getModerators();
+            this.members = channel.getMembers();
+            this.banned = channel.getBanned();
+            this.muted = channel.getMuted();
+        }
+    }
+
     public ChannelManager(WerchatPlugin plugin) {
         this.plugin = plugin;
-        this.channels = new HashMap<>();
+        this.channels = new ConcurrentHashMap<>();
         this.gson = new GsonBuilder().setPrettyPrinting().create();
         this.saveExecutor = Executors.newSingleThreadScheduledExecutor();
+        this.motdShownThisLogin = Collections.synchronizedSet(new HashSet<>());
+        this.papi = PAPIIntegration.register(plugin);
         this.suppressDirtyNotifications = false;
     }
 
@@ -180,6 +240,8 @@ public class ChannelManager {
         global.setDefault(true);
         global.setAutoJoin(true);
         global.setQuickChatSymbol("!");
+        global.setDescription("Server-wide chat visible to everyone.");
+        global.setDescriptionEnabled(true);
         registerChannel(global);
         defaultChannel = global;
 
@@ -189,6 +251,8 @@ public class ChannelManager {
         local.setFormat(DEFAULT_CHANNEL_FORMAT);
         local.setDistance(100);
         local.setAutoJoin(true);
+        local.setDescription("Nearby chat based on distance.");
+        local.setDescriptionEnabled(true);
         registerChannel(local);
 
         Channel trade = new Channel("Trade");
@@ -197,6 +261,8 @@ public class ChannelManager {
         trade.setFormat(DEFAULT_CHANNEL_FORMAT);
         trade.setAutoJoin(true);
         trade.setQuickChatSymbol("~");
+        trade.setDescription("Buying and selling channel.");
+        trade.setDescriptionEnabled(true);
         registerChannel(trade);
 
         Channel support = new Channel("Support");
@@ -204,6 +270,8 @@ public class ChannelManager {
         support.setColor(Color.GREEN);
         support.setFormat(DEFAULT_CHANNEL_FORMAT);
         support.setAutoJoin(true);
+        support.setDescription("Help and support channel.");
+        support.setDescriptionEnabled(true);
         registerChannel(support);
     }
 
@@ -223,6 +291,17 @@ public class ChannelManager {
     private void flushDebouncedSave() {
         synchronized (saveStateLock) {
             pendingSaveTask = null;
+        }
+
+        saveChannels();
+    }
+
+    public void flushPendingSaveNow() {
+        synchronized (saveStateLock) {
+            if (pendingSaveTask != null) {
+                pendingSaveTask.cancel(false);
+                pendingSaveTask = null;
+            }
         }
 
         saveChannels();
@@ -252,35 +331,46 @@ public class ChannelManager {
             Path dataDir = plugin.getDataDirectory();
             Files.createDirectories(dataDir);
 
+            List<ChannelSaveSnapshot> snapshots = snapshotChannelsForSave();
+
             // Save channel settings
             Path channelsFile = dataDir.resolve("channels.json");
             JsonArray arr = new JsonArray();
-            for (Channel ch : channels.values()) {
-                arr.add(serializeChannel(ch));
+            for (ChannelSaveSnapshot snapshot : snapshots) {
+                arr.add(serializeChannel(snapshot));
             }
             Files.writeString(channelsFile, gson.toJson(arr));
 
             // Save member data separately
-            saveMembers(dataDir);
+            saveMembers(dataDir, snapshots);
 
-            plugin.getLogger().at(Level.INFO).log("Saved %d channels", channels.size());
+            plugin.getLogger().at(Level.INFO).log("Saved %d channels", snapshots.size());
         } catch (Exception e) {
             plugin.getLogger().at(Level.WARNING).log("Failed to save channels: %s", e.getMessage());
         }
     }
 
-    private void saveMembers(Path dataDir) throws IOException {
+    private List<ChannelSaveSnapshot> snapshotChannelsForSave() {
+        List<ChannelSaveSnapshot> snapshots = new ArrayList<>();
+        for (Channel channel : channels.values()) {
+            snapshots.add(new ChannelSaveSnapshot(channel));
+        }
+        snapshots.sort(Comparator.comparing(snapshot -> snapshot.name.toLowerCase(Locale.ROOT)));
+        return snapshots;
+    }
+
+    private void saveMembers(Path dataDir, List<ChannelSaveSnapshot> snapshots) throws IOException {
         Path membersFile = dataDir.resolve("channel-members.json");
         JsonObject root = new JsonObject();
 
-        for (Channel ch : channels.values()) {
+        for (ChannelSaveSnapshot snapshot : snapshots) {
             JsonObject chData = new JsonObject();
-            chData.add("owner", serializeUuidWithName(ch.getOwner()));
-            chData.add("moderators", serializeUuidSetWithNames(ch.getModerators()));
-            chData.add("members", serializeUuidSetWithNames(ch.getMembers()));
-            chData.add("banned", serializeUuidSetWithNames(ch.getBanned()));
-            chData.add("muted", serializeUuidSetWithNames(ch.getMuted()));
-            root.add(ch.getName(), chData);
+            chData.add("owner", serializeUuidWithName(snapshot.owner));
+            chData.add("moderators", serializeUuidSetWithNames(snapshot.moderators));
+            chData.add("members", serializeUuidSetWithNames(snapshot.members));
+            chData.add("banned", serializeUuidSetWithNames(snapshot.banned));
+            chData.add("muted", serializeUuidSetWithNames(snapshot.muted));
+            root.add(snapshot.name, chData);
         }
 
         Files.writeString(membersFile, gson.toJson(root));
@@ -289,7 +379,9 @@ public class ChannelManager {
     private JsonObject serializeUuidSetWithNames(Set<UUID> uuids) {
         JsonObject obj = new JsonObject();
         PlayerDataManager pdm = plugin.getPlayerDataManager();
-        for (UUID id : uuids) {
+        List<UUID> sorted = new ArrayList<>(uuids);
+        sorted.sort(Comparator.comparing(UUID::toString));
+        for (UUID id : sorted) {
             String name = pdm != null ? pdm.getKnownName(id) : "";
             obj.addProperty(id.toString(), name);
         }
@@ -357,30 +449,38 @@ public class ChannelManager {
         }
     }
 
-    private JsonObject serializeChannel(Channel ch) {
+    private JsonObject serializeChannel(ChannelSaveSnapshot snapshot) {
         JsonObject obj = new JsonObject();
 
         // Identity
-        obj.addProperty("name", ch.getName());
-        obj.addProperty("nick", ch.getNick());
+        obj.addProperty("name", snapshot.name);
+        obj.addProperty("nick", snapshot.nick);
 
         // Appearance
-        obj.addProperty("color", ch.getColorHex());
-        obj.addProperty("messageColor", ch.hasMessageColor() ? ch.getMessageColorHex() : "");
-        obj.addProperty("format", ch.getFormat());
+        obj.addProperty("color", snapshot.colorHex);
+        obj.addProperty("messageColor", snapshot.messageColorHex);
+        obj.addProperty("format", snapshot.format);
 
         // Behavior
-        obj.addProperty("distance", ch.getDistance());
+        obj.addProperty("distance", snapshot.distance);
         JsonArray worldsArr = new JsonArray();
-        for (String w : ch.getWorlds()) worldsArr.add(w);
+        List<String> sortedWorlds = new ArrayList<>(snapshot.worlds);
+        sortedWorlds.sort(String.CASE_INSENSITIVE_ORDER);
+        for (String world : sortedWorlds) {
+            worldsArr.add(world);
+        }
         obj.add("worlds", worldsArr);
-        obj.addProperty("password", ch.getPassword());
-        obj.addProperty("quickChatSymbol", ch.hasQuickChatSymbol() ? ch.getQuickChatSymbol() : "");
-        obj.addProperty("quickChatEnabled", ch.isQuickChatEnabled());
-        obj.addProperty("isDefault", ch.isDefault());
-        obj.addProperty("autoJoin", ch.isAutoJoin());
-        obj.addProperty("focusable", ch.isFocusable());
-        obj.addProperty("verbose", ch.isVerbose());
+        obj.addProperty("password", snapshot.password);
+        obj.addProperty("quickChatSymbol", snapshot.quickChatSymbol);
+        obj.addProperty("quickChatEnabled", snapshot.quickChatEnabled);
+        obj.addProperty("isDefault", snapshot.isDefault);
+        obj.addProperty("autoJoin", snapshot.autoJoin);
+        obj.addProperty("focusable", snapshot.focusable);
+        obj.addProperty("verbose", snapshot.verbose);
+        obj.addProperty("description", snapshot.description);
+        obj.addProperty("descriptionEnabled", snapshot.descriptionEnabled);
+        obj.addProperty("motd", snapshot.motd);
+        obj.addProperty("motdEnabled", snapshot.motdEnabled);
 
         return obj;
     }
@@ -409,6 +509,18 @@ public class ChannelManager {
             }
             if (obj.has("verbose")) {
                 ch.setVerbose(obj.get("verbose").getAsBoolean());
+            }
+            if (obj.has("description") && !obj.get("description").isJsonNull()) {
+                ch.setDescription(obj.get("description").getAsString());
+            }
+            if (obj.has("descriptionEnabled")) {
+                ch.setDescriptionEnabled(obj.get("descriptionEnabled").getAsBoolean());
+            }
+            if (obj.has("motd") && !obj.get("motd").isJsonNull()) {
+                ch.setMotd(obj.get("motd").getAsString());
+            }
+            if (obj.has("motdEnabled")) {
+                ch.setMotdEnabled(obj.get("motdEnabled").getAsBoolean());
             }
 
             if (obj.has("messageColor") && !obj.get("messageColor").isJsonNull()) {
@@ -456,6 +568,9 @@ public class ChannelManager {
     }
 
     public boolean registerChannel(Channel channel) {
+        if (channel == null || channel.getName() == null || channel.getName().isBlank()) {
+            return false;
+        }
         if (channels.containsKey(channel.getName().toLowerCase())) return false;
 
         channel.setChangeListener(this::markDirty);
@@ -465,6 +580,9 @@ public class ChannelManager {
     }
 
     public boolean unregisterChannel(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
         Channel channel = channels.remove(name.toLowerCase());
         if (channel != null) {
             channel.setChangeListener(null);
@@ -481,10 +599,14 @@ public class ChannelManager {
     }
 
     public Channel getChannel(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
         Channel channel = channels.get(name.toLowerCase());
         if (channel != null) return channel;
         for (Channel ch : channels.values()) {
-            if (ch.getNick().equalsIgnoreCase(name)) return ch;
+            String nick = ch.getNick();
+            if (nick != null && nick.equalsIgnoreCase(name)) return ch;
         }
         return null;
     }
@@ -493,7 +615,7 @@ public class ChannelManager {
      * Find channel by name, nick, or partial match (prefix)
      */
     public Channel findChannel(String input) {
-        if (input == null || input.isEmpty()) return null;
+        if (input == null || input.isBlank()) return null;
         String lower = input.toLowerCase();
 
         // Exact name match
@@ -502,7 +624,8 @@ public class ChannelManager {
 
         // Exact nick match
         for (Channel ch : channels.values()) {
-            if (ch.getNick().equalsIgnoreCase(input)) return ch;
+            String nick = ch.getNick();
+            if (nick != null && nick.equalsIgnoreCase(input)) return ch;
         }
 
         // Prefix match on name
@@ -512,7 +635,8 @@ public class ChannelManager {
 
         // Prefix match on nick
         for (Channel ch : channels.values()) {
-            if (ch.getNick().toLowerCase().startsWith(lower)) return ch;
+            String nick = ch.getNick();
+            if (nick != null && nick.toLowerCase().startsWith(lower)) return ch;
         }
 
         return null;
@@ -524,12 +648,30 @@ public class ChannelManager {
      */
     public Channel findChannelByQuickChatSymbol(String message) {
         if (message == null || message.isEmpty()) return null;
+        Channel bestMatch = null;
+        int bestMatchLength = -1;
         for (Channel ch : channels.values()) {
-            if (ch.hasQuickChatSymbol() && message.startsWith(ch.getQuickChatSymbol())) {
-                return ch;
+            if (!ch.hasQuickChatSymbol()) {
+                continue;
+            }
+            String symbol = ch.getQuickChatSymbol();
+            if (!message.startsWith(symbol)) {
+                continue;
+            }
+
+            int symbolLength = symbol.length();
+            if (symbolLength > bestMatchLength) {
+                bestMatch = ch;
+                bestMatchLength = symbolLength;
+                continue;
+            }
+
+            if (symbolLength == bestMatchLength && bestMatch != null
+                && ch.getName().compareToIgnoreCase(bestMatch.getName()) < 0) {
+                bestMatch = ch;
             }
         }
-        return null;
+        return bestMatch;
     }
 
     public Channel getDefaultChannel() { return defaultChannel; }
@@ -545,6 +687,9 @@ public class ChannelManager {
     public boolean channelExists(String name) { return getChannel(name) != null; }
 
     public Channel createChannel(String name, UUID creator) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
         if (channelExists(name)) return null;
         Channel channel = new Channel(name);
         channel.setOwner(creator);
@@ -553,7 +698,64 @@ public class ChannelManager {
         return channel;
     }
 
+    public void resetMotdSession(UUID playerId) {
+        if (playerId != null) {
+            motdShownThisLogin.remove(playerId);
+        }
+    }
+
+    public void sendChannelMotd(UUID playerId, Channel channel) {
+        if (playerId == null || channel == null) {
+            return;
+        }
+        if (motdShownThisLogin.contains(playerId)) {
+            return;
+        }
+        if (!channel.isMember(playerId)) {
+            return;
+        }
+        if (!plugin.getConfig().isChannelMotdSystemEnabled()) {
+            return;
+        }
+        if (!channel.isMotdEnabled() || !channel.hasMotd()) {
+            return;
+        }
+
+        PlayerDataManager playerData = plugin.getPlayerDataManager();
+        if (playerData == null) {
+            return;
+        }
+        PlayerRef player = playerData.getOnlinePlayer(playerId);
+        if (player == null) {
+            return;
+        }
+
+        String motdNick = applyPapi(player, channel.getNick());
+        String motdText = applyPapi(player, channel.getMotd());
+
+        player.sendMessage(Message.join(
+            Message.raw("[" + motdNick + " MOTD] ").color(channel.getColorHex()),
+            Message.raw(motdText).color(channel.getEffectiveMessageColorHex())
+        ));
+        motdShownThisLogin.add(playerId);
+    }
+
+    private String applyPapi(PlayerRef player, String text) {
+        if (text == null || text.isEmpty() || player == null || papi == null) {
+            return text == null ? "" : text;
+        }
+        try {
+            String resolved = papi.setPlaceholders(player, text);
+            return resolved == null ? text : resolved;
+        } catch (Throwable ignored) {
+            return text;
+        }
+    }
+
     public boolean renameChannel(String oldName, String newName) {
+        if (oldName == null || oldName.isBlank() || newName == null || newName.isBlank()) {
+            return false;
+        }
         Channel channel = getChannel(oldName);
         if (channel == null) return false;
         if (channelExists(newName)) return false;
@@ -566,6 +768,9 @@ public class ChannelManager {
     }
 
     public boolean deleteChannel(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
         Channel channel = getChannel(name);
         if (channel == null || channels.size() <= 1) return false;
         return unregisterChannel(name);

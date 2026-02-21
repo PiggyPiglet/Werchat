@@ -4,6 +4,7 @@ import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.basecommands.CommandBase;
+import com.hypixel.hytale.server.core.permissions.PermissionsModule;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.werchat.WerchatPlugin;
 import com.werchat.storage.PlayerDataManager;
@@ -17,12 +18,10 @@ import java.util.UUID;
  */
 public class IgnoreListCommand extends CommandBase {
 
-    private final WerchatPlugin plugin;
     private final PlayerDataManager playerDataManager;
 
     public IgnoreListCommand(WerchatPlugin plugin) {
         super("ignorelist", "List ignored players", false);
-        this.plugin = plugin;
         this.playerDataManager = plugin.getPlayerDataManager();
 
         this.setPermissionGroup(GameMode.Adventure);
@@ -35,6 +34,13 @@ public class IgnoreListCommand extends CommandBase {
         }
 
         UUID playerId = ctx.sender().getUuid();
+        PermissionsModule perms = PermissionsModule.get();
+        if (!perms.hasPermission(playerId, "werchat.ignore")
+                && !perms.hasPermission(playerId, "werchat.*")
+                && !perms.hasPermission(playerId, "*")) {
+            ctx.sendMessage(Message.raw("You don't have permission to view ignored players").color("#FF5555"));
+            return;
+        }
         Set<UUID> ignoredPlayers = playerDataManager.getIgnoredPlayers(playerId);
 
         if (ignoredPlayers.isEmpty()) {

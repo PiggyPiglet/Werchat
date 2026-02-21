@@ -29,11 +29,15 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
     private static final String DEFAULT_ACTIVE_CHANNEL_ALIAS = "active";
     private static final List<String> CHANNEL_PLACEHOLDER_KEYS = List.of(
         "effective_msg_colorhex",
+        "description_enabled",
+        "has_description",
         "has_quickchatsymbol",
+        "motd_enabled",
         "join_permission",
         "read_permission",
         "speak_permission",
         "quickchatsymbol",
+        "has_motd",
         "moderator_names",
         "moderator_count",
         "member_names",
@@ -58,8 +62,10 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
         "owner_name",
         "distance",
         "format",
+        "description",
         "colorhex",
         "worlds",
+        "motd",
         "owner",
         "color",
         "nick",
@@ -307,7 +313,9 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             case "nick" -> channel.getNick();
             case "colorhex" -> channel.getColorHex();
             case "format" -> channel.getFormat();
+            case "description" -> channel.getDescription();
             case "color" -> channel.getColorHex();
+            case "motd" -> channel.getMotd();
             case "effective_msg_colorhex" -> channel.getEffectiveMessageColorHex();
             case "join_permission" -> channel.getJoinPermission();
             case "read_permission" -> channel.getReadPermission();
@@ -349,7 +357,11 @@ public class WerchatExpansion extends PlaceholderExpansion implements Configurab
             case "has_password" -> PlaceholderAPI.booleanValue(channel.hasPassword());
             case "has_msg_color" -> PlaceholderAPI.booleanValue(channel.hasMessageColor());
             case "has_worlds" -> PlaceholderAPI.booleanValue(channel.hasWorlds());
+            case "has_description" -> PlaceholderAPI.booleanValue(channel.hasDescription());
+            case "has_motd" -> PlaceholderAPI.booleanValue(channel.hasMotd());
             case "has_quickchatsymbol" -> PlaceholderAPI.booleanValue(channel.hasQuickChatSymbol());
+            case "description_enabled" -> PlaceholderAPI.booleanValue(channel.isDescriptionEnabled());
+            case "motd_enabled" -> PlaceholderAPI.booleanValue(channel.isMotdEnabled());
             default -> null;
         };
     }

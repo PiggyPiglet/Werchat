@@ -2,12 +2,12 @@ $C = "../Common.ui";
 $W = "WerchatStyles.ui";
 
 Group {
-  Anchor: (Width: 92, Height: 30);
-  Padding: (Right: 4);
+  Anchor: (Width: 108, Height: 32);
+  Padding: (Right: 6);
 
   TextButton #ModeratorTabButton {
-    Text: "M:Channel";
-    Anchor: (Width: 88, Height: 28);
-    Style: $W.@TabButtonStyleSmall;
+    Text: "Channel";
+    Anchor: (Width: 102, Height: 30);
+    Style: $W.@TabButtonStyle;
   }
 }
