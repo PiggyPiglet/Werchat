@@ -225,7 +225,7 @@ Config file: `mods/com.werchat_Werchat/config.json`
 | `wordFilter.replacement` | `"***"` | Replacement string in censor mode |
 | `wordFilter.notifyPlayer` | `true` | Warn the player when filtered |
 | `wordFilter.warningMessage` | `"Your message contained..."` | Warning message text |
-| `wordFilter.words` | (default list) | Words to filter (case-insensitive) |
+| `wordFilter.words` | `[]` | Words to filter (case-insensitive); empty by default |
 | `cooldown.enabled` | `false` | Enable chat cooldown |
 | `cooldown.seconds` | `3` | Seconds between messages |
 | `cooldown.message` | `"Please wait {seconds}s..."` | Cooldown message |

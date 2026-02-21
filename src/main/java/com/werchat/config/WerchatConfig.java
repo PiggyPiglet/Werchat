@@ -53,15 +53,6 @@ public class WerchatConfig {
     public WerchatConfig(WerchatPlugin plugin) {
         this.plugin = plugin;
         this.configFile = plugin.getDataDirectory().resolve("config.json");
-        initDefaults();
-    }
-
-    private void initDefaults() {
-        // Default filtered words
-        filteredWords.addAll(Arrays.asList(
-            "fuck", "shit", "bitch", "cunt", "dick", "pussy",
-            "nigger", "nigga", "faggot", "retard", "whore", "slut"
-        ));
     }
 
     public void load() {
