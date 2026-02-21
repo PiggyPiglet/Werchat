@@ -1,0 +1,12 @@
+$C = "../Common.ui";
+
+Group {
+  Anchor: (Left: 0, Right: 0, Height: 20);
+  LayoutMode: Left;
+
+  Label #HelpCommandText {
+    Text: "";
+    Anchor: (Left: 0, Right: 0, Height: 18);
+    Style: (TextColor: #d8e3f0, FontSize: 12);
+  }
+}

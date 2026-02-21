@@ -10,7 +10,7 @@ import java.util.UUID;
  */
 public interface WerchatAPI {
 
-    String API_VERSION = "2.1.0";
+    String API_VERSION = "2.2.0";
 
     Collection<WerchatChannelView> getChannels();
 

@@ -150,6 +150,7 @@ public class WerchatAPIImpl implements WerchatAPI {
         }
 
         playerDataManager.setFocusedChannel(playerId, channel.getName());
+        channelManager.sendChannelMotd(playerId, channel);
         return finishAction(context, WerchatActionResult.success("Focused channel updated", channel.getName()));
     }
 
@@ -223,6 +224,7 @@ public class WerchatAPIImpl implements WerchatAPI {
         }
 
         channel.addMember(playerId);
+        channelManager.sendChannelMotd(playerId, channel);
         return finishAction(context, WerchatActionResult.success("Joined channel", channel.getName()));
     }
 
@@ -469,6 +471,10 @@ public class WerchatAPIImpl implements WerchatAPI {
             channel.getNick(),
             channel.getColorHex(),
             channel.getEffectiveMessageColorHex(),
+            channel.getDescription(),
+            channel.isDescriptionEnabled(),
+            channel.getMotd(),
+            channel.isMotdEnabled(),
             channel.getDistance(),
             channel.isDefault(),
             channel.isAutoJoin(),

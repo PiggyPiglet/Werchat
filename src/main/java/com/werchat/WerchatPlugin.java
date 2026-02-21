@@ -24,7 +24,7 @@ import java.util.logging.Level;
 
 /**
  * Werchat - Channel-based chat system for Hytale
- * Version 1.10.1
+ * Version 1.11.0
  */
 public class WerchatPlugin extends JavaPlugin {
 
@@ -43,7 +43,7 @@ public class WerchatPlugin extends JavaPlugin {
 
     @Override
     public java.util.concurrent.CompletableFuture<Void> preLoad() {
-        getLogger().at(Level.INFO).log("Werchat 1.10.1 is loading...");
+        getLogger().at(Level.INFO).log("Werchat 1.11.0 is loading...");
 
         // Initialize config first
         this.config = new WerchatConfig(this);

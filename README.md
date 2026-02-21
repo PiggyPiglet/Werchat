@@ -27,6 +27,8 @@
 
 **Moderation Tools** — Per-channel ban, mute, moderators, word filter (censor/block modes), and chat cooldown.
 
+**In-Game Settings UI** — `/ch`, `/ch settings`, `/ch list`, and `/ch help` open a unified UI for profile, channels, and moderator tools.
+
 **Permission Integration** — HyperPerms and LuckPerms prefix/suffix support with hex color codes.
 
 **PlaceholderAPI Integration** — Supports external `%...%` placeholders in channel format text and includes a built-in `%werchat_*%` expansion.
@@ -39,13 +41,14 @@
 
 ## Quick Start
 
-1. Drop `Werchat-1.10.1.jar` in your `mods/` folder
+1. Drop `Werchat-1.11.0.jar` in your `mods/` folder
 2. Start your server — four default channels are created automatically
-3. Use `/ch list` to see channels, `/ch join <channel>` to join one
+3. Use `/ch` to open the settings UI (`/ch list` opens directly to Channels)
 4. Type `!hello` to quick-chat in Global or `~hello` for Trade
 
 ```
-/ch list                    # List all channels
+/ch                         # Open Werchat settings UI
+/ch list                    # Open Channels tab
 /ch global                  # Switch to Global channel
 /ch join trade              # Join the Trade channel
 /msg Steve Hey!             # Send a private message
@@ -61,13 +64,22 @@
 | Trade | Trade | Gold (`#ffd700`) | Unlimited | Yes | `~` |
 | Support | Support | Green (`#00ff00`) | Unlimited | Yes | — |
 
+## Settings UI
+
+- `/ch` or `/ch settings` opens the Werchat settings UI.
+- Main tab includes focused-channel controls, nickname/color tools, and permission-filtered command help.
+- Channels tab includes join/leave/focus actions plus owner, description, and MOTD visibility.
+- Moderator channel management uses a dropdown selector so large channel counts stay usable.
+
 ## Commands
 
 ### Player Commands
 
 | Command | Aliases | Description |
 |---------|---------|-------------|
-| `/ch list` | `/ch l` | List all channels |
+| `/ch` | — | Open Werchat settings UI |
+| `/ch settings` | — | Open Werchat settings UI |
+| `/ch list` | `/ch l` | Open Channels tab in the settings UI |
 | `/ch join <channel> [password]` | `/ch j` | Join a channel |
 | `/ch leave <channel>` | — | Leave a channel |
 | `/ch <channel>` | — | Switch active channel |
@@ -76,7 +88,7 @@
 | `/ch create <name> [nick]` | — | Create a new channel |
 | `/ch playernick <name> [#color] [#gradient]` | `/ch pnick`, `/ch nickname` | Set your nickname |
 | `/ch msgcolor <#color> [#gradient]` | `/ch chatcolor` | Set your message color |
-| `/ch help` | `/ch ?` | Show command help |
+| `/ch help` | `/ch ?` | Open Main tab help (permission-filtered) |
 
 ### Messaging Commands
 
@@ -107,6 +119,9 @@
 | `/ch reload` | — | Reload Werchat config and channel data from disk |
 
 Channel moderators can use admin commands on their own channels without needing global permission nodes.
+
+If `/ch create <name>` is used without a nick, Werchat auto-generates a short nick from the first character and disambiguates collisions:
+- Example: `12312345 -> 1`, `1234903425 -> 1-2`, `1 -> 1-3`.
 
 <details>
 <summary><strong>All Permissions</strong></summary>
@@ -210,7 +225,7 @@ Config file: `mods/com.werchat_Werchat/config.json`
 | `wordFilter.replacement` | `"***"` | Replacement string in censor mode |
 | `wordFilter.notifyPlayer` | `true` | Warn the player when filtered |
 | `wordFilter.warningMessage` | `"Your message contained..."` | Warning message text |
-| `wordFilter.words` | (default list) | Words to filter (case-insensitive) |
+| `wordFilter.words` | `[]` | Words to filter (case-insensitive); empty by default |
 | `cooldown.enabled` | `false` | Enable chat cooldown |
 | `cooldown.seconds` | `3` | Seconds between messages |
 | `cooldown.message` | `"Please wait {seconds}s..."` | Cooldown message |
@@ -391,7 +406,7 @@ API notes:
 
 ```bash
 ./gradlew buildRelease
-# Output: build/libs/Werchat-1.10.1.jar (built for latest release channel)
+# Output: build/libs/Werchat-1.11.0.jar (built for latest release channel)
 ```
 
 Build variants:

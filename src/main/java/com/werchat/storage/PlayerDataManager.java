@@ -16,6 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 public class PlayerDataManager {
@@ -32,9 +33,9 @@ public class PlayerDataManager {
 
     public PlayerDataManager(WerchatPlugin plugin) {
         this.plugin = plugin;
-        this.playerData = new HashMap<>();
-        this.onlinePlayers = new HashMap<>();
-        this.knownNames = new HashMap<>();
+        this.playerData = new ConcurrentHashMap<>();
+        this.onlinePlayers = new ConcurrentHashMap<>();
+        this.knownNames = new ConcurrentHashMap<>();
         this.nicknameSaveExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
@@ -179,6 +180,17 @@ public class PlayerDataManager {
         saveNicknames();
     }
 
+    public void flushPendingNicknameSaveNow() {
+        synchronized (nicknameSaveLock) {
+            if (pendingNicknameSave != null) {
+                pendingNicknameSave.cancel(false);
+                pendingNicknameSave = null;
+            }
+        }
+
+        saveNicknames();
+    }
+
     public void shutdownDebouncedSaver() {
         synchronized (nicknameSaveLock) {
             if (pendingNicknameSave != null) {
@@ -229,13 +241,12 @@ public class PlayerDataManager {
         Path file = getNicknamesFile();
         try {
             Files.createDirectories(file.getParent());
+            Map<UUID, PlayerChatData> playerSnapshot = new HashMap<>(playerData);
             Map<String, NicknameData> toSave = new HashMap<>();
-            for (Map.Entry<UUID, PlayerChatData> entry : playerData.entrySet()) {
-                PlayerChatData data = entry.getValue();
-                if (data.hasNickname() || data.hasMsgColor()) {
-                    toSave.put(entry.getKey().toString(), new NicknameData(
-                        data.getNickname(), data.getNickColor(), data.getNickGradientEnd(),
-                        data.getMsgColor(), data.getMsgGradientEnd()));
+            for (Map.Entry<UUID, PlayerChatData> entry : playerSnapshot.entrySet()) {
+                NicknameData snapshot = entry.getValue().snapshotNicknameData();
+                if (snapshot.shouldPersist()) {
+                    toSave.put(entry.getKey().toString(), snapshot);
                 }
             }
             Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -260,6 +271,11 @@ public class PlayerDataManager {
             this.msgColor = msgColor;
             this.msgGradientEnd = msgGradientEnd;
         }
+
+        boolean shouldPersist() {
+            return (nickname != null && !nickname.isEmpty())
+                || (msgColor != null && !msgColor.isEmpty());
+        }
     }
 
     public void clearTransientData(UUID playerId) {
@@ -282,7 +298,7 @@ public class PlayerDataManager {
 
         public PlayerChatData() {
             this.focusedChannel = "Global";
-            this.ignoredPlayers = new HashSet<>();
+            this.ignoredPlayers = ConcurrentHashMap.newKeySet();
             this.lastMessageTime = 0;
             this.nickname = null;
             this.nickColor = null;
@@ -291,27 +307,30 @@ public class PlayerDataManager {
             this.msgGradientEnd = null;
         }
 
-        public String getFocusedChannel() { return focusedChannel; }
-        public void setFocusedChannel(String channel) { this.focusedChannel = channel; }
-        public boolean isIgnoring(UUID targetId) { return ignoredPlayers.contains(targetId); }
-        public void addIgnore(UUID targetId) { ignoredPlayers.add(targetId); }
-        public void removeIgnore(UUID targetId) { ignoredPlayers.remove(targetId); }
-        public Set<UUID> getIgnoredPlayers() { return new HashSet<>(ignoredPlayers); }
-        public UUID getLastMessageFrom() { return lastMessageFrom; }
-        public void setLastMessageFrom(UUID from) { this.lastMessageFrom = from; }
-        public long getLastMessageTime() { return lastMessageTime; }
-        public void setLastMessageTime(long time) { this.lastMessageTime = time; }
-        public String getNickname() { return nickname; }
-        public void setNickname(String nickname) { this.nickname = nickname; }
-        public String getNickColor() { return nickColor; }
-        public void setNickColor(String nickColor) { this.nickColor = nickColor; }
-        public String getNickGradientEnd() { return nickGradientEnd; }
-        public void setNickGradientEnd(String nickGradientEnd) { this.nickGradientEnd = nickGradientEnd; }
-        public boolean hasNickname() { return nickname != null && !nickname.isEmpty(); }
-        public String getMsgColor() { return msgColor; }
-        public void setMsgColor(String msgColor) { this.msgColor = msgColor; }
-        public String getMsgGradientEnd() { return msgGradientEnd; }
-        public void setMsgGradientEnd(String msgGradientEnd) { this.msgGradientEnd = msgGradientEnd; }
-        public boolean hasMsgColor() { return msgColor != null && !msgColor.isEmpty(); }
+        public synchronized String getFocusedChannel() { return focusedChannel; }
+        public synchronized void setFocusedChannel(String channel) { this.focusedChannel = channel; }
+        public synchronized boolean isIgnoring(UUID targetId) { return ignoredPlayers.contains(targetId); }
+        public synchronized void addIgnore(UUID targetId) { ignoredPlayers.add(targetId); }
+        public synchronized void removeIgnore(UUID targetId) { ignoredPlayers.remove(targetId); }
+        public synchronized Set<UUID> getIgnoredPlayers() { return new HashSet<>(ignoredPlayers); }
+        public synchronized UUID getLastMessageFrom() { return lastMessageFrom; }
+        public synchronized void setLastMessageFrom(UUID from) { this.lastMessageFrom = from; }
+        public synchronized long getLastMessageTime() { return lastMessageTime; }
+        public synchronized void setLastMessageTime(long time) { this.lastMessageTime = time; }
+        public synchronized String getNickname() { return nickname; }
+        public synchronized void setNickname(String nickname) { this.nickname = nickname; }
+        public synchronized String getNickColor() { return nickColor; }
+        public synchronized void setNickColor(String nickColor) { this.nickColor = nickColor; }
+        public synchronized String getNickGradientEnd() { return nickGradientEnd; }
+        public synchronized void setNickGradientEnd(String nickGradientEnd) { this.nickGradientEnd = nickGradientEnd; }
+        public synchronized boolean hasNickname() { return nickname != null && !nickname.isEmpty(); }
+        public synchronized String getMsgColor() { return msgColor; }
+        public synchronized void setMsgColor(String msgColor) { this.msgColor = msgColor; }
+        public synchronized String getMsgGradientEnd() { return msgGradientEnd; }
+        public synchronized void setMsgGradientEnd(String msgGradientEnd) { this.msgGradientEnd = msgGradientEnd; }
+        public synchronized boolean hasMsgColor() { return msgColor != null && !msgColor.isEmpty(); }
+        public synchronized NicknameData snapshotNicknameData() {
+            return new NicknameData(nickname, nickColor, nickGradientEnd, msgColor, msgGradientEnd);
+        }
     }
 }

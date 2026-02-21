@@ -1,0 +1,22 @@
+$W = "WerchatStyles.ui";
+
+Group {
+  Anchor: (Height: 36, Left: 0, Right: 0);
+  LayoutMode: Left;
+  Padding: (Left: 8, Right: 8, Top: 2, Bottom: 2);
+  Background: (Color: #132338);
+
+  Label #ModerationListEntryName {
+    Text: "Player";
+    Anchor: (Height: 30);
+    Style: (FontSize: 13, TextColor: #d8e3f0, VerticalAlignment: Center);
+  }
+
+  Group { FlexWeight: 1; }
+
+  TextButton #ModerationListEntryActionButton {
+    Text: "Apply";
+    Anchor: (Width: 120, Height: 30);
+    Style: $W.@SecondaryButtonStyle;
+  }
+}

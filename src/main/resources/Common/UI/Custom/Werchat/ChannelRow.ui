@@ -1,0 +1,88 @@
+$C = "../Common.ui";
+$W = "WerchatStyles.ui";
+
+Group {
+  Anchor: (Height: 144, Left: 0, Right: 0);
+  LayoutMode: Left;
+  Padding: (Left: 10, Right: 10, Top: 10, Bottom: 10);
+  Background: (Color: #132338);
+
+  Group {
+    LayoutMode: Top;
+    FlexWeight: 1;
+
+    Group {
+      LayoutMode: Left;
+
+      Label #ChannelTag {
+        Text: "[Tag]";
+        Style: (FontSize: 15, TextColor: #ffffff, RenderBold: true);
+      }
+
+      Label #ChannelName {
+        Text: "Channel";
+        Style: (FontSize: 15, TextColor: #ffffff, RenderBold: true);
+        Padding: (Left: 6);
+      }
+
+      Label #FocusedChip {
+        Text: " Selected";
+        Style: (FontSize: 12, TextColor: #7fd1ff);
+        Padding: (Left: 8, Top: 3);
+        Visible: false;
+      }
+    }
+
+    Label #ChannelMeta {
+      Text: "Members: 0";
+      Style: (FontSize: 12, TextColor: #9eb3cc);
+      Padding: (Top: 3);
+    }
+
+    Label #ChannelOwner {
+      Text: "Owner: None";
+      Style: (FontSize: 12, TextColor: #d8e3f0);
+      Padding: (Top: 2);
+    }
+
+    Label #ChannelDescription {
+      Text: "Description: Off";
+      Style: (FontSize: 12, TextColor: #d8e3f0);
+      Padding: (Top: 2);
+      Visible: true;
+    }
+
+    Label #ChannelMotd {
+      Text: "MOTD: Off";
+      Style: (FontSize: 11, TextColor: #ffe0a3);
+      Padding: (Top: 2);
+      Visible: true;
+    }
+  }
+
+  Group {
+    Anchor: (Width: 10);
+  }
+
+  TextButton #FocusButton {
+    Text: "Focus";
+    Anchor: (Width: 86, Height: 32);
+    Style: $W.@PrimaryButtonStyle;
+  }
+  Group {
+    Anchor: (Width: 8);
+  }
+  TextButton #JoinButton {
+    Text: "Join";
+    Anchor: (Width: 86, Height: 32);
+    Style: $W.@SecondaryButtonStyle;
+  }
+  Group {
+    Anchor: (Width: 8);
+  }
+  TextButton #LeaveButton {
+    Text: "Leave";
+    Anchor: (Width: 86, Height: 32);
+    Style: $W.@SecondaryButtonStyle;
+  }
+}
