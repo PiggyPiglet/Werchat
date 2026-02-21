@@ -167,7 +167,7 @@ $C.@DecoratedContainer {
           }
 
           $C.@SimpleContainer {
-            Anchor: (Height: 1240);
+            Anchor: (Height: 1080);
             Padding: (Full: 14);
 
             Group {
@@ -487,10 +487,9 @@ $C.@DecoratedContainer {
               }
 
               Group #MainHelpCommandsWrap {
-                LayoutMode: TopScrolling;
-                ScrollbarStyle: $C.@DefaultExtraSpacingScrollbarStyle;
-                Anchor: (Left: 0, Right: 0, Height: 260);
-                Padding: (Right: 8, Bottom: 4);
+                LayoutMode: Top;
+                Anchor: (Left: 0, Right: 0);
+                Padding: (Bottom: 4);
 
                 Group #MainHelpCommands {
                   LayoutMode: Top;
@@ -1034,12 +1033,12 @@ $C.@DecoratedContainer {
         Group #ModerationListModalBackdrop {
           Anchor: (Left: 0, Right: 0, Top: 0, Bottom: 0);
           LayoutMode: Top;
-          Padding: (Top: 76, Left: 130, Right: 130, Bottom: 110);
+          Padding: (Top: 42, Left: 130, Right: 130, Bottom: 78);
           Background: (Color: #08101a);
           Visible: false;
 
           Group #ModerationListModalCard {
-            Anchor: (Height: 420, Left: 0, Right: 0);
+            Anchor: (Height: 370, Left: 0, Right: 0);
             LayoutMode: Top;
             Padding: (Full: 14);
             Background: (Color: #0f1f33);

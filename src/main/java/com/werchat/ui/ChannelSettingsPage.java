@@ -235,7 +235,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
         events.addEventBinding(CustomUIEventBindingType.Activating, "#TabChannelsButton",
             EventData.of("Button", "Tab").append("Tab", TAB_CHANNELS), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#ModeratorTabsOpenButton",
-            EventData.of("Button", "ModTab").append("Channel", "#ModeratorTabsDropdown.Value"), false);
+            EventData.of("Button", "ModTab").append("@Channel", "#ModeratorTabsDropdown.Value"), false);
         events.addEventBinding(CustomUIEventBindingType.Activating, "#JoinPasswordModalConfirmButton",
             EventData.of("Button", "JoinPasswordConfirm")
                 .append("@Password", "#JoinPasswordModalInput.Value"), false);
@@ -611,7 +611,9 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
     private List<Channel> getFocusableChannels(UUID viewerId) {
         List<Channel> channels = new ArrayList<>();
         for (Channel channel : channelManager.getAllChannels()) {
-            boolean member = channel.isMember(viewerId);
+            if (!channel.isMember(viewerId)) {
+                continue;
+            }
             if (channel.isBanned(viewerId)) {
                 continue;
             }
@@ -620,13 +622,9 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
                 if (!hasPermission(viewerId, channel.getReadPermission())) {
                     continue;
                 }
-                if (member || (!channel.hasPassword() && hasPermission(viewerId, channel.getJoinPermission()))) {
-                    channels.add(channel);
-                }
+                channels.add(channel);
             } else {
-                if (member || !channel.hasPassword()) {
-                    channels.add(channel);
-                }
+                channels.add(channel);
             }
         }
         channels.sort(Comparator.comparing(channel -> channel.getName().toLowerCase(Locale.ROOT)));
@@ -1954,6 +1952,7 @@ public class ChannelSettingsPage extends InteractiveCustomUIPage<ChannelSettings
             .addField(new KeyedCodec<>("Button", Codec.STRING), (data, value) -> data.button = value, data -> data.button)
             .addField(new KeyedCodec<>("Tab", Codec.STRING), (data, value) -> data.tab = value, data -> data.tab)
             .addField(new KeyedCodec<>("Channel", Codec.STRING), (data, value) -> data.channel = value, data -> data.channel)
+            .addField(new KeyedCodec<>("@Channel", Codec.STRING), (data, value) -> data.channel = value, data -> data.channel)
             .addField(new KeyedCodec<>("Action", Codec.STRING), (data, value) -> data.action = value, data -> data.action)
             .addField(new KeyedCodec<>("@Target", Codec.STRING), (data, value) -> data.target = value, data -> data.target)
             .addField(new KeyedCodec<>("@Value", Codec.STRING), (data, value) -> data.value = value, data -> data.value)
