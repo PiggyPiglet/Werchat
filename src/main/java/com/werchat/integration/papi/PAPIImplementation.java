@@ -8,13 +8,6 @@ import java.lang.reflect.Method;
 import java.util.logging.Level;
 
 public class PAPIImplementation extends PAPIIntegration {
-    private final WerchatPlugin plugin;
-    private boolean isRegistered = false;
-
-    public PAPIImplementation(WerchatPlugin plugin) {
-        this.plugin = plugin;
-    }
-
     @Override
     public String setPlaceholders(PlayerRef player, String text) {
         try {
@@ -31,10 +24,5 @@ public class PAPIImplementation extends PAPIIntegration {
         } catch (Throwable ignored) {
             return text;
         }
-    }
-
-    private void registerExpansionIfReady() {
-
-
     }
 }

@@ -21,7 +21,7 @@ public abstract class PAPIIntegration {
         try {
             Class.forName("at.helpch.placeholderapi.PlaceholderAPI");
 
-            impl = new PAPIImplementation(plugin);
+            impl = new PAPIImplementation();
             final WerchatExpansion expansion = new WerchatExpansion(plugin);
 
             if (expansion.isRegistered()) {
