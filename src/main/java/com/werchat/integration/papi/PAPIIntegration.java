@@ -24,13 +24,15 @@ public abstract class PAPIIntegration {
             impl = new PAPIImplementation();
             final WerchatExpansion expansion = new WerchatExpansion(plugin);
 
+            plugin.getLogger().at(Level.INFO).log("PlaceholderAPI integration enabled");
+
             if (expansion.isRegistered()) {
-                plugin.getLogger().atWarning().log("Warning! Werchat's placeholderapi identifier %werchat_% is being used by another expansion. You will not be able to use werchat placeholders in other plugins.");
+                plugin.getLogger().atWarning().log("Warning! Werchat's PlaceholderAPI identifier %werchat_% is being used by another expansion. You will not be able to use werchat placeholders in other plugins.");
                 return;
             }
 
-            if (expansion.register()) {
-                plugin.getLogger().at(Level.INFO).log("PlaceholderAPI integration enabled");
+            if (!expansion.register()) {
+                plugin.getLogger().atWarning().log("Failed to register the Werchat expansion with PlaceholderAPI");
             }
         } catch (ClassNotFoundException e) {
             plugin.getLogger().at(Level.WARNING).log("PlaceholderAPI integration failed: %s", e.getMessage());
